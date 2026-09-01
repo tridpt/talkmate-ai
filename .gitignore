@@ -1,0 +1,14 @@
+# Python runtime files
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local secrets and database
+.env
+talkmate.db
+*.db-journal
+
+# Editor and OS files
+.vscode/
+.DS_Store
+Thumbs.db

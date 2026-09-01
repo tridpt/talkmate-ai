@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#fff9f0" />
+  <title>TalkMate - Speak English, for real</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="grain"></div>
+  <header class="topbar shell">
+    <a class="brand" href="#" aria-label="TalkMate home"><span class="brand-mark" aria-hidden="true">T</span><span>TalkMate</span></a>
+    <div class="top-actions"><span id="ai-badge" class="status-pill">Checking coach...</span><button id="btn-progress" class="text-button">My progress <span aria-hidden="true">-></span></button><button id="btn-account" class="account-button">Sign in</button></div>
+  </header>
+
+  <main class="shell">
+    <section id="home" class="home-view">
+      <div class="hero-grid">
+        <div class="hero-copy reveal">
+          <p class="eyebrow">ENGLISH, UNFROZEN</p>
+          <h1>Stop translating.<br /><em>Start talking.</em></h1>
+          <p class="hero-text">Practice the conversations you will actually have - one brave little reply at a time.</p>
+          <div class="streak-card"><span class="streak-icon" aria-hidden="true">*</span><span><strong id="streak-count">0-day</strong> speaking streak</span><span class="streak-dot"></span><span id="today-label">Start your first session today</span></div>
+        </div>
+        <aside class="daily-card reveal delay-1">
+          <div class="daily-card-top"><span class="eyebrow">TODAY'S TINY WIN</span><span class="sun">sun</span></div>
+          <p class="daily-prompt">Speak for five minutes<br />in English today.</p>
+          <div class="tiny-progress"><span id="daily-progress"></span></div>
+          <p id="daily-status" class="daily-status">0 / 5 minutes</p>
+        </aside>
+      </div>
+
+      <div class="focus-strip reveal delay-1">
+        <div class="focus-copy"><p class="eyebrow">YOUR LEARNING PATH</p><strong>Today's focus</strong><span id="focus-summary">A2 - Travel & everyday life</span></div>
+        <label class="focus-control">Level<select id="level-select"><option value="A1">A1 - First words</option><option value="A2" selected>A2 - Everyday speaker</option><option value="B1">B1 - Independent</option><option value="B2">B2 - Confident</option><option value="C1">C1 - Nuanced</option></select></label>
+        <label class="focus-control">Goal<select id="goal-select"><option value="travel" selected>Travel</option><option value="interview">Interview</option><option value="work">Work</option><option value="dating">Dating</option></select></label>
+        <label class="english-toggle"><input type="checkbox" id="english-only" /><span class="toggle-track"><span></span></span><span>English-only mode</span></label>
+      </div>
+
+      <div class="momentum-grid reveal delay-2">
+        <article class="momentum-card">
+          <div class="momentum-top"><p class="eyebrow">YOUR MOMENTUM</p><span id="badge-preview" class="badge-preview">FIRST HELLO</span></div>
+          <div class="momentum-stats"><div><strong id="xp-total">0</strong><span>XP</span></div><div><strong id="level-total">1</strong><span>level</span></div><div><strong id="badge-total">0</strong><span>badges</span></div></div>
+          <div class="xp-track"><span id="xp-progress"></span></div><p id="xp-next" class="xp-next">100 XP to Level 2</p>
+        </article>
+        <article class="challenge-card">
+          <div><p class="eyebrow">BRAVE MODE</p><h3>60 seconds.<br /><em>No translating.</em></h3><p>Pick a prompt, keep talking, and let the words come.</p></div>
+          <button id="btn-challenge" class="primary-button">Try the challenge <span aria-hidden="true">-></span></button>
+        </article>
+      </div>
+
+      <div class="section-heading reveal delay-1"><div><p class="eyebrow">PICK A MOMENT</p><h2>What do you want to practice?</h2></div><span id="lesson-count" class="lesson-count"></span></div>
+      <div id="levels" class="level-tabs reveal delay-2" aria-label="Practice paths"></div>
+      <div id="scenario-list" class="scenario-grid reveal delay-2"></div>
+    </section>
+
+    <section id="practice" class="practice-view hidden">
+      <div class="practice-top"><button id="btn-exit" class="back-button"><span aria-hidden="true"><-</span> Back to practice</button><div class="practice-meta"><span id="turn-counter">0 / 4 turns</span><span class="meta-separator"></span><span id="mode-label">Practice mode</span><span id="session-language" class="language-pill hidden">ENGLISH ONLY</span></div></div>
+      <div class="lesson-layout">
+        <aside class="mission-panel">
+          <div id="scene-icon" class="scene-icon" aria-hidden="true"></div><p id="sc-category" class="eyebrow"></p><h2 id="sc-title"></h2><p id="sc-context" class="mission-context"></p>
+          <div class="mission-rule"><span class="rule-mark">!</span><p id="sc-goal"></p></div>
+          <div class="phrase-bank"><p class="eyebrow">WORDS TO BORROW</p><div id="vocabulary" class="chips"></div></div>
+        </aside>
+        <div class="conversation-panel">
+          <div class="conversation-header"><div class="partner-title"><span class="partner-orb"></span><span>Conversation</span></div><button id="btn-sound" class="round-button" title="Read the latest reply aloud" aria-label="Read the latest reply aloud">sound</button></div>
+          <div id="chat" class="chat" aria-live="polite"></div>
+          <div id="coach-box" class="coach-box hidden">
+            <div class="coach-head"><span class="coach-star">*</span><span>COACH'S NOTE</span><span id="overall-score" class="overall-score"></span></div>
+            <p id="feedback" class="feedback"></p><div id="improved-wrap" class="improved-wrap hidden"><span>TRY THIS</span><p id="improved"></p></div><p id="tip" class="tip"></p><div id="scores" class="scores"></div>
+          </div>
+          <div id="pronunciation-box" class="pronunciation-box hidden">
+            <div class="pronunciation-head"><span class="mic-badge">mic</span><div><p class="eyebrow">SPEECH CLARITY</p><strong id="pronunciation-label">Very clear</strong></div><strong id="pronunciation-score" class="pronunciation-score">--%</strong></div>
+            <p class="heard-line">I heard: <span id="pronunciation-heard"></span></p>
+            <div id="unclear-words" class="unclear-words"></div>
+            <p id="pronunciation-tip" class="pronunciation-tip"></p>
+            <div class="voice-actions"><button id="btn-slow" class="voice-button">Play slow <span aria-hidden="true">0.72x</span></button><button id="btn-normal" class="voice-button active">Play normal <span aria-hidden="true">0.92x</span></button></div>
+          </div>
+          <div id="finished" class="finished hidden"><div><span class="finish-spark">*</span><p class="eyebrow">SCENE COMPLETE</p><h3>You showed up. That counts.</h3></div><button id="btn-again" class="primary-button">Pick another moment <span aria-hidden="true">-></span></button></div>
+          <form id="composer" class="composer"><label class="sr-only" for="input">Your reply in English</label><textarea id="input" rows="2" maxlength="600" placeholder="Type your reply in English..."></textarea><div class="composer-actions"><button type="button" id="btn-mic" class="mic-button" title="Speak your reply" aria-label="Speak your reply"><span aria-hidden="true">mic</span> Speak</button><span class="shortcut">Ctrl + Enter to send</span><button id="btn-send" class="send-button" type="submit">Send <span aria-hidden="true">-></span></button></div></form>
+        </div>
+      </div>
+    </section>
+
+    <section id="progress-view" class="progress-view hidden">
+      <button id="btn-close-progress" class="back-button"><span aria-hidden="true"><-</span> Back home</button>
+      <div class="progress-heading"><p class="eyebrow">YOUR VOICE, GROWING</p><h1>Small practice.<br /><em>Real momentum.</em></h1></div>
+      <div class="progress-grid"><article class="metric-card"><span>Scenes completed</span><strong id="stat-scenes">0</strong></article><article class="metric-card"><span>Practice streak</span><strong id="stat-streak">0 days</strong></article><article class="metric-card"><span>Average score</span><strong id="stat-score">--</strong></article></div>
+      <div class="next-step-card"><p class="eyebrow">NEXT BEST STEP</p><h2 id="next-step">Choose a real-life scene and say your first sentence out loud.</h2><button id="btn-start-from-progress" class="primary-button">Practice now <span aria-hidden="true">-></span></button></div>
+      <section class="badge-shelf"><div class="review-heading"><div><p class="eyebrow">BADGE CABINET</p><h2>Proof that you showed up.</h2></div><span id="badge-progress" class="lesson-count">0 / 5 unlocked</span></div><div id="badge-list" class="badge-list"></div></section>
+      <section class="weekly-section"><div class="review-heading"><div><p class="eyebrow">YOUR WEEK IN MOTION</p><h2>Seven days of showing up.</h2></div><span id="sync-status" class="lesson-count">Local progress</span></div><div id="weekly-chart" class="weekly-chart"></div><p id="weekly-caption" class="weekly-caption">Sign in to sync this chart across devices.</p></section>
+      <section id="review-lab" class="review-lab">
+        <div class="review-heading"><div><p class="eyebrow">REVIEW STUDIO</p><h2>Turn your slips into strong sentences.</h2></div><span id="review-count" class="lesson-count">0 saved corrections</span></div>
+        <div id="review-empty" class="review-empty"><span>*</span><p>Complete a conversation and TalkMate will turn your corrected sentences into tiny review exercises here.</p></div>
+        <div id="review-card" class="review-card hidden">
+          <div class="review-card-top"><span id="review-tag" class="review-tag">NATURAL PHRASING</span><span id="review-mode" class="review-mode">Your practice</span></div>
+          <p id="review-instruction" class="review-instruction">Make this sound natural in English.</p>
+          <blockquote id="review-source"></blockquote>
+          <label class="sr-only" for="review-input">Your improved sentence</label><textarea id="review-input" rows="2" placeholder="Write your improved version..."></textarea>
+          <div class="review-actions"><button id="btn-check-review" class="voice-button active">Compare with model answer</button><button id="btn-new-review" class="voice-button">New exercise</button></div>
+          <div id="review-answer" class="review-answer hidden"><span>MODEL ANSWER</span><strong id="review-correction"></strong><p id="review-note"></p><button id="btn-hear-review" class="hear-review">Listen to model answer</button></div>
+        </div>
+      </section>
+    </section>
+
+    <section id="challenge-view" class="challenge-view hidden">
+      <div class="practice-top"><button id="btn-exit-challenge" class="back-button"><span aria-hidden="true"><-</span> Back home</button><span class="challenge-kicker">BRAVE MODE / 60 SECONDS</span></div>
+      <div class="challenge-layout">
+        <div class="challenge-intro"><p class="eyebrow">SAY IT BEFORE YOU TRANSLATE IT</p><h1>One minute<br /><em>of brave English.</em></h1><p>Choose a prompt. Keep your voice moving. Pauses are okay - switching back to Vietnamese is the only rule you are breaking.</p><div class="challenge-prompt"><span class="prompt-label">TODAY'S PROMPT</span><strong id="challenge-prompt">Tell me about a place you would love to visit.</strong><button id="btn-new-prompt" class="text-button">New prompt <span aria-hidden="true">↻</span></button></div></div>
+        <div class="challenge-console"><div class="timer-ring"><span id="challenge-timer">60</span><small>SEC</small></div><div id="challenge-transcript" class="challenge-transcript">Your words will appear here...</div><div class="challenge-controls"><button id="btn-start-challenge" class="primary-button">Start speaking <span aria-hidden="true">mic</span></button><button id="btn-stop-challenge" class="voice-button hidden">Finish early</button></div><div id="challenge-result" class="challenge-result hidden"><p class="eyebrow">CHALLENGE COMPLETE</p><h3 id="challenge-result-title">You kept going.</h3><p id="challenge-result-copy"></p><button id="btn-challenge-again" class="voice-button active">One more minute</button></div></div>
+      </div>
+    </section>
+  </main>
+  <div id="auth-modal" class="auth-modal hidden" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+    <div class="auth-card"><button id="btn-close-auth" class="auth-close" aria-label="Close sign in">x</button><p class="eyebrow">TALKMATE ACCOUNT</p><h2 id="auth-title">Keep your progress with you.</h2><p class="auth-copy">Sign in to sync scenes, XP, streaks, and your weekly chart on any device using this server.</p><div class="auth-tabs"><button id="auth-login-tab" class="auth-tab active">Sign in</button><button id="auth-register-tab" class="auth-tab">Create account</button></div><form id="auth-form"><label id="name-field" class="auth-field hidden">Name<input id="auth-name" autocomplete="name" /></label><label class="auth-field">Email<input id="auth-email" type="email" autocomplete="email" required /></label><label class="auth-field">Password<input id="auth-password" type="password" minlength="6" autocomplete="current-password" required /></label><p id="auth-error" class="auth-error"></p><button class="primary-button auth-submit" type="submit">Continue <span aria-hidden="true">-></span></button></form><p class="auth-footnote">Passwords are stored as a secure hash; your practice text is never shown publicly.</p></div>
+  </div>
+  <template id="message-template"><article class="message"><div class="message-label"></div><p></p></article></template>
+  <script src="app.js"></script>
+</body>
+</html>
