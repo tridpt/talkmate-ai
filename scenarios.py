@@ -206,6 +206,130 @@ LEVELS = {
 }
 
 
+SENTENCE_BUILDERS = {
+    "cup": {
+        "label": "POLITE ORDER",
+        "frame": "I'd like [item] [detail], please.",
+        "hint": "Name what you want, then add one useful detail.",
+        "slots": [
+            {"key": "item", "label": "item", "placeholder": "an iced latte"},
+            {"key": "detail", "label": "detail", "placeholder": "to go"},
+        ],
+        "examples": ["I'd like an iced latte to go, please.", "Could I have a coffee for here, please?"],
+    },
+    "map": {
+        "label": "ASK FOR DIRECTIONS",
+        "frame": "Could you tell me [question], please?",
+        "hint": "Use a polite opener before your exact question.",
+        "slots": [{"key": "question", "label": "question", "placeholder": "where the station is"}],
+        "examples": ["Could you tell me where the station is, please?", "How long does it take to walk there?"],
+    },
+    "home": {
+        "label": "SMALL TALK",
+        "frame": "I [situation], so I'm looking for [thing].",
+        "hint": "Give one small detail, then invite a useful response.",
+        "slots": [
+            {"key": "situation", "label": "situation", "placeholder": "just moved in"},
+            {"key": "thing", "label": "thing", "placeholder": "good food nearby"},
+        ],
+        "examples": ["I just moved in, so I'm looking for good food nearby.", "Do you have any recommendations around here?"],
+    },
+    "phone": {
+        "label": "MAKE A REQUEST",
+        "frame": "I'm calling about [topic]. Could I [request]?",
+        "hint": "State the reason first, then make one clear request.",
+        "slots": [
+            {"key": "topic", "label": "topic", "placeholder": "my reservation"},
+            {"key": "request", "label": "request", "placeholder": "change the date"},
+        ],
+        "examples": ["I'm calling about my reservation. Could I change the date?", "Could you confirm the new check-in date?"],
+    },
+    "doctor": {
+        "label": "EXPLAIN A SYMPTOM",
+        "frame": "I've had [symptom] for [time].",
+        "hint": "Use have had + a time period for symptoms that continue now.",
+        "slots": [
+            {"key": "symptom", "label": "symptom", "placeholder": "a sore throat"},
+            {"key": "time", "label": "time", "placeholder": "two days"},
+        ],
+        "examples": ["I've had a sore throat for two days.", "Should I take anything for the pain?"],
+    },
+    "key": {
+        "label": "ASK A PRACTICAL QUESTION",
+        "frame": "Could I ask whether [question]?",
+        "hint": "Whether makes apartment questions sound clear and professional.",
+        "slots": [{"key": "question", "label": "question", "placeholder": "utilities are included"}],
+        "examples": ["Could I ask whether utilities are included?", "When would the apartment be available?"],
+    },
+    "plate": {
+        "label": "ORDER SAFELY",
+        "frame": "I'm allergic to [food]. Could I have [dish] without it?",
+        "hint": "State the allergy first so the server can help safely.",
+        "slots": [
+            {"key": "food", "label": "food", "placeholder": "peanuts"},
+            {"key": "dish", "label": "dish", "placeholder": "this dish"},
+        ],
+        "examples": ["I'm allergic to peanuts. Could I have this dish without them?", "Could you put the sauce on the side?"],
+    },
+    "globe": {
+        "label": "GIVE A RECOMMENDATION",
+        "frame": "If you like [interest], you should [recommendation].",
+        "hint": "Use this to make a personal, useful recommendation.",
+        "slots": [
+            {"key": "interest", "label": "interest", "placeholder": "local food"},
+            {"key": "recommendation", "label": "recommendation", "placeholder": "try the night market"},
+        ],
+        "examples": ["If you like local food, you should try the night market.", "It's worth visiting in the evening."],
+    },
+    "briefcase": {
+        "label": "INTRODUCE YOURSELF",
+        "frame": "I'm currently [role], and I'm interested in [field] because [reason].",
+        "hint": "Connect what you do now to the direction you want next.",
+        "slots": [
+            {"key": "role", "label": "role", "placeholder": "a junior designer"},
+            {"key": "field", "label": "field", "placeholder": "product design"},
+            {"key": "reason", "label": "reason", "placeholder": "I enjoy solving user problems"},
+        ],
+        "examples": ["I'm currently a junior designer, and I'm interested in product design because I enjoy solving user problems.", "One project I'm proud of is ..."],
+    },
+    "spark": {
+        "label": "SHARE AN IDEA",
+        "frame": "I suggest we [action] because [reason].",
+        "hint": "A clear suggestion needs one practical reason.",
+        "slots": [
+            {"key": "action", "label": "action", "placeholder": "test a smaller version first"},
+            {"key": "reason", "label": "reason", "placeholder": "we only have two weeks"},
+        ],
+        "examples": ["I suggest we test a smaller version first because we only have two weeks.", "The trade-off is ..., but ..."],
+    },
+    "handshake": {
+        "label": "MAKE A CONNECTION",
+        "frame": "I work in [field]. What kind of [thing] do you work on?",
+        "hint": "Share one fact about yourself, then ask an open question.",
+        "slots": [
+            {"key": "field", "label": "field", "placeholder": "marketing"},
+            {"key": "thing", "label": "thing", "placeholder": "projects"},
+        ],
+        "examples": ["I work in marketing. What kind of projects do you work on?", "How did you get into that field?"],
+    },
+    "presentation": {
+        "label": "PRESENT AN IDEA",
+        "frame": "The problem is [problem], so I propose [solution].",
+        "hint": "Lead with the problem, then make your solution concrete.",
+        "slots": [
+            {"key": "problem", "label": "problem", "placeholder": "new users leave too early"},
+            {"key": "solution", "label": "solution", "placeholder": "a simpler onboarding flow"},
+        ],
+        "examples": ["The problem is new users leave too early, so I propose a simpler onboarding flow.", "The expected impact is ..."],
+    },
+}
+
+
+def sentence_builder_for(scenario: dict):
+    """Return a reusable sentence frame for the selected real-life situation."""
+    return SENTENCE_BUILDERS.get(scenario.get("icon"), SENTENCE_BUILDERS["home"])
+
+
 def level_list():
     """Return concise level metadata for the home screen."""
     return sorted(

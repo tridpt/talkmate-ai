@@ -22,6 +22,8 @@ GEMINI_MODEL=gemini-2.5-flash
 
 - Twelve role-play scenes across everyday and work contexts.
 - A focused coach note after each response, including a natural rewrite when needed.
+- Grammar, word-choice, and sentence-pattern notes after each response.
+- A situation-specific Sentence Builder with reusable frames and fill-in slots.
 - Browser speech recognition for speaking replies where supported.
 - Text-to-speech playback for partner replies.
 - Speech clarity check after a microphone reply, including words to rehearse and slow/normal playback.

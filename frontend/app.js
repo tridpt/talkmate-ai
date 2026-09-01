@@ -58,12 +58,22 @@ const els = {
   category: $("#sc-category"),
   icon: $("#scene-icon"),
   vocabulary: $("#vocabulary"),
+  sentenceBuilder: $("#sentence-builder"),
+  builderLabel: $("#builder-label"),
+  builderHint: $("#builder-hint"),
+  builderFrame: $("#builder-frame"),
+  builderSlots: $("#builder-slots"),
+  builderPreview: $("#builder-preview"),
+  builderExamples: $("#builder-examples"),
   chat: $("#chat"),
   input: $("#input"),
   composer: $("#composer"),
   send: $("#btn-send"),
   coachBox: $("#coach-box"),
   feedback: $("#feedback"),
+  grammarNote: $("#grammar-note"),
+  wordChoiceNote: $("#word-choice-note"),
+  sentencePattern: $("#sentence-pattern"),
   improvedWrap: $("#improved-wrap"),
   improved: $("#improved"),
   tip: $("#tip"),
@@ -159,6 +169,10 @@ function getProgress() {
 function saveProgress(progress) {
   localStorage.setItem(storeKey, JSON.stringify(progressWithMetadata(progress)));
   queueSync(progress);
+}
+
+function progressWithMetadata(progress) {
+  return { ...progress };
 }
 
 function eventId(prefix) {
@@ -527,23 +541,6 @@ async function startScenario(index) {
   speak(data.opening);
 }
 
-function renderReviewLab() {
-  const progress = getProgress();
-  const items = progress.reviewItems || [];
-  els.reviewCount.textContent = `${items.length} saved correction${items.length === 1 ? "" : "s"}`;
-  els.reviewEmpty.classList.toggle("hidden", items.length > 0);
-  els.reviewCard.classList.toggle("hidden", items.length === 0);
-  if (!items.length) return;
-  const item = items[state.reviewIndex % items.length];
-  els.reviewTag.textContent = item.tag || "PERSONAL FIX";
-  els.reviewMode.textContent = item.level || "Your practice";
-  els.reviewSource.textContent = item.source;
-  els.reviewInput.value = "";
-  els.reviewAnswer.classList.add("hidden");
-  els.reviewCorrection.textContent = item.correction;
-  els.reviewNote.textContent = item.note || "Compare the structure, then say the model answer out loud.";
-}
-
 function renderBadges() {
   const progress = getProgress();
   const momentum = ensureMomentum(progress);
@@ -556,26 +553,6 @@ function renderBadges() {
     els.badgeList.append(item);
   });
   els.badgeProgress.textContent = `${momentum.badges.length} / ${badges.length} unlocked`;
-}
-
-function saveReviewItem(message, data) {
-  const correction = (data.improved || "").trim();
-  if (!correction || correction.toLowerCase() === message.trim().toLowerCase()) return;
-  const progress = getProgress();
-  progress.reviewItems ||= [];
-  const duplicate = progress.reviewItems.some((item) => item.source.toLowerCase() === message.trim().toLowerCase());
-  if (!duplicate) {
-    progress.reviewItems.unshift({
-      source: message.trim(),
-      correction,
-      note: data.feedback,
-      tag: /polite|direct/i.test(data.feedback || "") ? "POLITE ENGLISH" : "PERSONAL FIX",
-      level: getLearnerProfile().proficiency,
-    });
-    progress.reviewItems = progress.reviewItems.slice(0, 20);
-    saveProgress(progress);
-  }
-  renderReviewLab();
 }
 
 function setAuthMode(mode) {
@@ -671,17 +648,6 @@ async function toggleAccount() {
   updateAccountUI();
 }
 
-function checkReviewAnswer() {
-  const progress = getProgress();
-  const items = progress.reviewItems || [];
-  if (!items.length) return;
-  const item = items[state.reviewIndex % items.length];
-  const answer = els.reviewInput.value.trim().toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ");
-  const expected = item.correction.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ");
-  els.reviewAnswer.classList.remove("hidden");
-  els.reviewNote.textContent = answer === expected ? "Great - your rewrite matches the natural model." : "Compare the small details: word order, politeness, and the missing helper verb.";
-}
-
 function renderScenarios() {
   const level = getActiveLevel();
   if (!level) return;
@@ -729,6 +695,7 @@ function renderPractice(opening) {
     });
     els.vocabulary.append(chip);
   });
+  renderSentenceBuilder(state.scenario.sentence_builder);
   els.chat.replaceChildren();
   els.coachBox.classList.add("hidden");
   els.pronunciationBox.classList.add("hidden");
@@ -741,6 +708,52 @@ function renderPractice(opening) {
   addMessage("partner", opening);
 }
 
+function renderSentenceBuilder(builder) {
+  els.sentenceBuilder.classList.toggle("hidden", !builder);
+  if (!builder) return;
+  els.builderLabel.textContent = builder.label || "BUILD A USEFUL SENTENCE";
+  els.builderHint.textContent = builder.hint || "Use the frame, then make it your own.";
+  els.builderFrame.textContent = builder.frame || "";
+  els.builderSlots.replaceChildren();
+  (builder.slots || []).forEach((slot) => {
+    const label = document.createElement("label");
+    label.className = "builder-slot";
+    label.textContent = slot.label || "detail";
+    const input = document.createElement("input");
+    input.dataset.slot = slot.key;
+    input.placeholder = slot.placeholder || "your words";
+    input.addEventListener("input", updateBuilderPreview);
+    label.append(input);
+    els.builderSlots.append(label);
+  });
+  els.builderExamples.replaceChildren();
+  (builder.examples || []).slice(0, 2).forEach((example) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "builder-example";
+    item.textContent = example;
+    item.addEventListener("click", () => {
+      els.input.value = example;
+      els.input.focus();
+    });
+    els.builderExamples.append(item);
+  });
+  updateBuilderPreview();
+}
+
+function buildSentence() {
+  const builder = state.scenario?.sentence_builder;
+  if (!builder) return "";
+  const values = {};
+  els.builderSlots.querySelectorAll("input").forEach((input) => { values[input.dataset.slot] = input.value.trim(); });
+  return (builder.frame || "").replace(/\[([^\]]+)\]/g, (match, key) => values[key] || match);
+}
+
+function updateBuilderPreview() {
+  const sentence = buildSentence();
+  els.builderPreview.textContent = sentence ? `Your sentence: ${sentence}` : "Add your details to build a sentence.";
+}
+
 function updateTurnCounter() {
   const turns = state.history.filter((turn) => turn.role === "user").length;
   els.turnCounter.textContent = `${turns} / 4 turns`;
@@ -749,6 +762,9 @@ function updateTurnCounter() {
 function renderCoaching(data) {
   els.coachBox.classList.remove("hidden");
   els.feedback.textContent = data.feedback;
+  els.grammarNote.textContent = data.grammar_note || "No grammar issue to fix in this sentence.";
+  els.wordChoiceNote.textContent = data.word_choice_note || "Your word choice works for this situation.";
+  els.sentencePattern.textContent = data.sentence_pattern || data.improved || state.scenario?.starter || "";
   els.tip.textContent = data.tip;
   els.score.textContent = `${data.overall}/10`;
   els.improved.textContent = data.improved;
@@ -757,7 +773,10 @@ function renderCoaching(data) {
   Object.entries(data.scores).forEach(([name, score]) => {
     const item = document.createElement("span");
     item.className = "score";
-    item.innerHTML = `${name} <strong>${score}</strong>`;
+    const label = document.createTextNode(name.replace("_", " "));
+    const value = document.createElement("strong");
+    value.textContent = score;
+    item.append(label, " ", value);
     els.scores.append(item);
   });
   els.mode.textContent = data.mode === "ai" ? "AI coach" : "Guided practice";
@@ -952,8 +971,8 @@ function saveReviewItem(message, data) {
     progress.reviewItems.unshift({
       source: message.trim(),
       correction,
-      note: data.feedback,
-      tag: /polite|direct/i.test(data.feedback || "") ? "POLITE ENGLISH" : "PERSONAL FIX",
+      note: data.grammar_note || data.word_choice_note || data.feedback,
+      tag: reviewTag(data),
       level: profile.proficiency,
       target: profile.target,
     });
@@ -961,6 +980,13 @@ function saveReviewItem(message, data) {
     saveProgress(progress);
   }
   renderReviewLab();
+}
+
+function reviewTag(data) {
+  const notes = `${data.grammar_note || ""} ${data.word_choice_note || ""} ${data.feedback || ""}`.toLowerCase();
+  if (/polite|direct|lịch sự/.test(notes)) return "POLITE ENGLISH";
+  if (/word|natural|từ|cụm/.test(notes)) return "WORD CHOICE";
+  return "GRAMMAR & SENTENCE";
 }
 
 function checkReviewAnswer() {
@@ -1125,6 +1151,13 @@ els.authForm.addEventListener("submit", submitAuth);
 $("#btn-close-progress").addEventListener("click", () => showView("home"));
 $("#btn-start-from-progress").addEventListener("click", () => showView("home"));
 $("#btn-sound").addEventListener("click", () => speak(state.lastPartnerReply));
+$("#btn-use-sentence").addEventListener("click", () => {
+  const sentence = buildSentence();
+  if (sentence && !sentence.includes("[")) {
+    els.input.value = sentence;
+    els.input.focus();
+  }
+});
 $("#btn-slow").addEventListener("click", () => speakAtRate(state.pronunciationSample, 0.72));
 $("#btn-normal").addEventListener("click", () => speakAtRate(state.pronunciationSample, 0.92));
 $("#btn-mic").addEventListener("click", toggleListening);

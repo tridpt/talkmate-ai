@@ -7,10 +7,12 @@ import re
 import config
 import scenarios
 
-SCORE_KEYS = ["clarity", "grammar", "naturalness", "confidence"]
+SCORE_KEYS = ["clarity", "grammar", "word_choice", "sentence", "naturalness", "confidence"]
 SCORE_LABELS = {
     "clarity": "Clarity",
     "grammar": "Grammar",
+    "word_choice": "Word choice",
+    "sentence": "Sentence",
     "naturalness": "Naturalness",
     "confidence": "Confidence",
 }
@@ -69,11 +71,11 @@ Feedback rules:
 - Praise what is understandable first. Correct only the one most important grammar, word choice, or politeness issue.
 - `improved` must be a natural English rewrite of the learner's exact meaning, or an empty string if it is already excellent.
 - `feedback` and `tip` must be short {feedback_language} sentences. `tip` teaches one reusable English phrase.
-- Score clarity, grammar, naturalness, confidence from 0 to 10.
+  - Score clarity, grammar, word_choice, sentence, naturalness, and confidence from 0 to 10.
 - Set done true after 4-7 learner turns when the scenario has a satisfying close.
 
 Return valid JSON only:
-{{"reply":"...", "feedback":"...", "improved":"...", "tip":"...", "scores":{{"clarity":0,"grammar":0,"naturalness":0,"confidence":0}}, "done":false}}"""
+{{"reply":"...", "feedback":"...", "improved":"...", "tip":"...", "grammar_note":"...", "word_choice_note":"...", "sentence_pattern":"...", "scores":{{"clarity":0,"grammar":0,"word_choice":0,"sentence":0,"naturalness":0,"confidence":0}}, "done":false}}"""
 
 
 def _build_contents(history: list[dict], user_message: str):
@@ -136,13 +138,18 @@ class Coach:
         replies = scenario.get("offline_replies", [])
         done = user_turns >= len(replies)
         reply = "That was lovely talking with you. Have a great day!" if done else replies[user_turns % len(replies)]
-        scores, feedback, improved, tip = _review_offline(user_message, scenario, learner, english_only)
+        scores, feedback, improved, tip, grammar_note, word_choice_note, sentence_pattern = _review_offline(
+            user_message, scenario, learner, english_only
+        )
         return _normalize(
             {
                 "reply": reply,
                 "feedback": feedback,
                 "improved": improved,
                 "tip": tip,
+                "grammar_note": grammar_note,
+                "word_choice_note": word_choice_note,
+                "sentence_pattern": sentence_pattern,
                 "scores": scores,
                 "done": done,
             },
@@ -178,6 +185,9 @@ def _normalize(data: dict, mode: str) -> dict:
         "feedback": str(data.get("feedback") or "").strip(),
         "improved": str(data.get("improved") or "").strip(),
         "tip": str(data.get("tip") or "").strip(),
+        "grammar_note": str(data.get("grammar_note") or "").strip(),
+        "word_choice_note": str(data.get("word_choice_note") or "").strip(),
+        "sentence_pattern": str(data.get("sentence_pattern") or "").strip(),
         "scores": scores,
         "overall": round(sum(scores.values()) / len(scores), 1),
         "done": bool(data.get("done", False)),
@@ -250,32 +260,53 @@ def _review_offline(message: str, scenario: dict, learner: dict, english_only: b
     text = message.strip()
     lower = text.lower()
     words = len(re.findall(r"\b[\w']+\b", text))
-    scores = {"clarity": 6, "grammar": 7, "naturalness": 6, "confidence": 7}
+    scores = {"clarity": 6, "grammar": 7, "word_choice": 7, "sentence": 6, "naturalness": 6, "confidence": 7}
     feedback = "Your meaning is clear. Keep the conversation moving." if english_only else "Ý của bạn rõ ràng, cứ tiếp tục giữ nhịp hội thoại nhé."
     improved = ""
     tip = f"Try: “{scenario['starter']}”" if english_only else f"Bạn có thể dùng: “{scenario['starter']}”"
+    grammar_note = "Grammar looks okay." if english_only else "Ngữ pháp hiện tại ổn."
+    word_choice_note = "Your word choice is understandable." if english_only else "Từ bạn chọn vẫn dễ hiểu."
+    sentence_pattern = scenario.get("starter", "")
 
     fixes = [
-        (r"\bi want\b", "I'd like", "'I want' is correct, but 'I'd like' sounds more polite here." if english_only else "‘I want’ đúng nhưng khá trực tiếp khi gọi món hoặc nhờ vả."),
-        (r"\bi am agree\b", "I agree", "Say 'I agree' - no 'am' is needed." if english_only else "Sau ‘I’ không cần dùng ‘am’ trước ‘agree’."),
-        (r"\bhow much is it\b", "How much is it?", "End this question with rising intonation." if english_only else "Câu hỏi nghe tự nhiên hơn khi thêm dấu hỏi và ngữ điệu lên ở cuối câu."),
-        (r"\bi very like\b", "I really like", "Use 'really' before the verb, not 'very'." if english_only else "Dùng ‘really’ trước động từ sẽ tự nhiên hơn ‘very’."),
-        (r"\bcan you to\b", "Can you", "After 'can', use the base verb without 'to'." if english_only else "Sau ‘can’ dùng động từ nguyên mẫu, không dùng ‘to’."),
+        (r"\bi want\b", "I'd like", "word", "'I want' is grammatically correct, but 'I'd like' is more polite here." if english_only else "‘I want’ đúng ngữ pháp nhưng khá trực tiếp; dùng ‘I’d like’ lịch sự hơn trong tình huống này.", "Use I'd like + noun / to + verb."),
+        (r"\bi am agree\b", "I agree", "grammar", "Say 'I agree' - no 'am' is needed." if english_only else "Sau ‘I’ không cần dùng ‘am’ trước ‘agree’.", "I + agree / disagree + with + person."),
+        (r"\bi very like\b", "I really like", "word", "Use 'really' before the verb, not 'very'." if english_only else "Dùng ‘really’ trước động từ sẽ tự nhiên hơn ‘very’.", "I really like + noun / verb-ing."),
+        (r"\bcan you to\b", "Can you", "grammar", "After 'can', use the base verb without 'to'." if english_only else "Sau ‘can’ dùng động từ nguyên mẫu, không dùng ‘to’.", "Can you + base verb ...?"),
+        (r"\bi have (\d+) years old\b", r"I am \1 years old", "grammar", "Use 'be', not 'have', for age." if english_only else "Khi nói tuổi dùng ‘be’, không dùng ‘have’.", "I am + number + years old."),
+        (r"\bi am boring\b", "I am bored", "word", "Use 'bored' for your feeling; 'boring' describes something that causes it." if english_only else "Dùng ‘bored’ cho cảm xúc của bạn; ‘boring’ mô tả thứ làm bạn chán.", "I am bored because ... / It is boring."),
+        (r"\bi(?:'m| am) interest\b", "I am interested", "grammar", "Use the adjective 'interested' after 'I am'." if english_only else "Sau ‘I am’ dùng tính từ ‘interested’.", "I am interested in + noun / verb-ing."),
+        (r"\bi(?:'d| would) like go\b", "I'd like to go", "grammar", "Use 'to' after 'would like'." if english_only else "Sau ‘would like’ cần có ‘to’ trước động từ.", "I'd like to + base verb."),
+        (r"\b(he|she|it) don't\b", r"\1 doesn't", "grammar", "Use 'doesn't' with he, she, and it." if english_only else "Với he, she, it dùng ‘doesn’t’, không dùng ‘don’t’.", "He / She / It doesn't + base verb."),
+        (r"\bi didn't went\b", "I didn't go", "grammar", "After 'didn't', use the base verb 'go'." if english_only else "Sau ‘didn’t’ dùng động từ nguyên mẫu ‘go’.", "I didn't + base verb."),
+        (r"\bpeople is\b", "People are", "grammar", "'People' is plural, so use 'are'." if english_only else "‘People’ là số nhiều nên dùng ‘are’.", "People are + adjective / verb-ing."),
+        (r"\bdiscuss about\b", "discuss", "grammar", "'Discuss' already includes the meaning of 'about'." if english_only else "‘Discuss’ đã mang nghĩa ‘thảo luận về’, không cần thêm ‘about’.", "Discuss + topic."),
+        (r"\bexplain me\b", "explain it to me", "grammar", "Use 'explain something to someone'." if english_only else "Dùng cấu trúc ‘explain something to someone’.", "Could you explain + it / this + to me?"),
+        (r"\bdepend of\b", "depend on", "grammar", "The correct preposition is 'on'." if english_only else "Giới từ đúng sau ‘depend’ là ‘on’.", "It depends on + noun / question word."),
+        (r"\bgo to there\b", "go there", "grammar", "Do not use 'to' before 'there'." if english_only else "Không dùng ‘to’ trước ‘there’.", "Go there / come here."),
+        (r"\bmore better\b", "better", "grammar", "'Better' is already comparative, so do not add 'more'." if english_only else "‘Better’ đã là so sánh hơn nên không thêm ‘more’.", "This option is better than ..."),
+        (r"\binformations\b", "information", "grammar", "'Information' is uncountable, so it has no plural -s." if english_only else "‘Information’ là danh từ không đếm được nên không thêm -s.", "Some information / a piece of information."),
     ]
-    for pattern, replacement, note in fixes:
+    for pattern, replacement, focus, note, pattern_tip in fixes:
         if re.search(pattern, lower):
             improved = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
             feedback = note
-            scores["grammar"] = 5
+            scores["grammar" if focus == "grammar" else "word_choice"] = 5
+            scores["sentence"] = 5
             scores["naturalness"] = 5
             tip = f"Try: “{improved}”" if english_only else f"Thử nói: “{improved}”"
+            grammar_note = note if focus == "grammar" else ("Grammar is okay; the wording is the key improvement." if english_only else "Ngữ pháp vẫn ổn; điểm cần cải thiện chính là cách dùng từ.")
+            word_choice_note = note if focus == "word" else ("This correction makes the sentence more natural." if english_only else "Sửa như vậy giúp câu tự nhiên hơn.")
+            sentence_pattern = pattern_tip
             break
     else:
         if words < 4:
             feedback = "Your reply is a little short, so it is harder to build a real conversation." if english_only else "Câu trả lời hơi ngắn, nên khó tạo phản xạ hội thoại."
             scores["clarity"] = 4
             scores["confidence"] = 5
+            scores["sentence"] = 5
             tip = "Add one detail or a question: “Could you tell me more?”" if english_only else "Thêm một chi tiết hoặc một câu hỏi: “Could you tell me more?”"
+            sentence_pattern = "Add one detail + one follow-up question."
         elif not re.search(r"[?.!]$", text):
             feedback = "Your sentence is clear. Let your voice fall at the end so it sounds complete." if english_only else "Câu của bạn dễ hiểu. Khi nói, hãy hạ giọng ở cuối câu để nghe trọn ý hơn."
         elif "please" in lower or "could" in lower:
@@ -283,4 +314,4 @@ def _review_offline(message: str, scenario: dict, learner: dict, english_only: b
             scores["naturalness"] = 8
             scores["confidence"] = 8
 
-    return scores, feedback, improved, tip
+    return scores, feedback, improved, tip, grammar_note, word_choice_note, sentence_pattern

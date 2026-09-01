@@ -196,6 +196,7 @@ def api_start():
             "duration": scenario["duration"],
             "starter": scenario["starter"],
             "vocabulary": scenario["vocabulary"],
+            "sentence_builder": scenarios.sentence_builder_for(scenario),
         },
         "opening": scenario["opening"],
     })
