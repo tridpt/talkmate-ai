@@ -20,9 +20,14 @@ const state = {
   authUser: null,
   authMode: "login",
   syncTimer: null,
+  csrfToken: null,
+  sessions: [],
+  sessionId: null,
+  activeHistoryId: null,
 };
 
 const storeKey = "talkmate-progress-v1";
+const deviceKey = "talkmate-device-id-v1";
 const challengePrompts = [
   "Tell me about a place you would love to visit and why.",
   "Describe the best meal you have had recently.",
@@ -116,6 +121,9 @@ const els = {
   weeklyChart: $("#weekly-chart"),
   weeklyCaption: $("#weekly-caption"),
   syncStatus: $("#sync-status"),
+  sessionHistory: $("#session-history"),
+  historyCount: $("#history-count"),
+  historyEmpty: $("#history-empty"),
   account: $("#btn-account"),
   authModal: $("#auth-modal"),
   authTitle: $("#auth-title"),
@@ -127,6 +135,10 @@ const els = {
   authNameField: $("#name-field"),
   authLoginTab: $("#auth-login-tab"),
   authRegisterTab: $("#auth-register-tab"),
+  historyModal: $("#history-modal"),
+  historyTitle: $("#history-title"),
+  historyMeta: $("#history-meta"),
+  historyTranscript: $("#history-transcript"),
 };
 
 function getProgress() {
@@ -137,6 +149,7 @@ function getProgress() {
       completed: Array.isArray(saved.completed) ? saved.completed : [],
       scores: Array.isArray(saved.scores) ? saved.scores : [],
       activeDays: Array.isArray(saved.activeDays) ? saved.activeDays : [],
+      scoreEvents: Array.isArray(saved.scoreEvents) ? saved.scoreEvents : [],
     };
   } catch {
     return { completed: [], scores: [], activeDays: [] };
@@ -144,8 +157,25 @@ function getProgress() {
 }
 
 function saveProgress(progress) {
-  localStorage.setItem(storeKey, JSON.stringify(progress));
+  localStorage.setItem(storeKey, JSON.stringify(progressWithMetadata(progress)));
   queueSync(progress);
+}
+
+function eventId(prefix) {
+  return `${prefix}-${Date.now()}-${crypto.randomUUID?.() || Math.random().toString(36).slice(2)}`;
+}
+
+function deviceId() {
+  let id = localStorage.getItem(deviceKey);
+  if (!id) {
+    id = eventId("device");
+    localStorage.setItem(deviceKey, id);
+  }
+  return id;
+}
+
+function syncHeaders() {
+  return { "Content-Type": "application/json", "X-CSRF-Token": state.csrfToken || "" };
 }
 
 function queueSync(progress) {
@@ -159,10 +189,16 @@ async function syncProgress(progress = getProgress()) {
   try {
     const response = await fetch("/api/sync", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: syncHeaders(),
       body: JSON.stringify({ progress }),
     });
-    if (!response.ok) throw new Error("Sync unavailable");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Sync unavailable");
+    if (data.csrf_token) state.csrfToken = data.csrf_token;
+    if (data.progress) {
+      localStorage.setItem(storeKey, JSON.stringify(data.progress));
+      updateProgressUI();
+    }
     els.syncStatus.textContent = "Synced across devices";
   } catch {
     els.syncStatus.textContent = "Sync will retry when online";
@@ -170,11 +206,15 @@ async function syncProgress(progress = getProgress()) {
 }
 
 function ensureMomentum(progress) {
-  progress.momentum ||= { xp: 0, badges: [], dailyMinutes: {}, challenges: 0 };
+  progress.momentum ||= { xp: 0, xpEvents: [], badges: [], dailyMinutes: {}, challenges: 0, challengeEvents: [] };
   progress.momentum.badges ||= [];
   progress.momentum.dailyMinutes ||= {};
   progress.momentum.xp ||= 0;
+  progress.momentum.xpEvents ||= progress.momentum.xp ? [{ id: "legacy-xp", amount: progress.momentum.xp, at: "" }] : [];
   progress.momentum.challenges ||= 0;
+  progress.momentum.challengeEvents ||= progress.momentum.challenges ? [{ id: "legacy-challenges", amount: progress.momentum.challenges, at: "" }] : [];
+  progress.momentum.xp = progress.momentum.xpEvents.reduce((total, event) => total + Number(event.amount || 0), 0);
+  progress.momentum.challenges = progress.momentum.challengeEvents.reduce((total, event) => total + Number(event.amount || 0), 0);
   return progress.momentum;
 }
 
@@ -189,6 +229,7 @@ function xpForCurrentLevel(xp) {
 function awardXp(amount) {
   const progress = getProgress();
   const momentum = ensureMomentum(progress);
+  momentum.xpEvents.push({ id: eventId("xp"), amount, at: new Date().toISOString() });
   momentum.xp += amount;
   evaluateBadges(progress);
   saveProgress(progress);
@@ -256,6 +297,7 @@ function updateProfile(mutator) {
   progress.profile.errors ||= {};
   progress.profile.strengths ||= {};
   mutator(progress.profile);
+  progress.profile_updated_at = new Date().toISOString();
   saveProgress(progress);
   renderProfileUI();
 }
@@ -364,6 +406,71 @@ function renderWeeklyChart(progress = getProgress()) {
   els.weeklyCaption.textContent = state.authUser ? "Your activity is synced to your TalkMate account." : "Sign in to sync this chart across devices.";
 }
 
+function formatSessionDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Saved conversation" : date.toLocaleString();
+}
+
+function renderSessionHistory() {
+  if (!els.sessionHistory) return;
+  els.sessionHistory.replaceChildren();
+  const sessions = state.sessions || [];
+  els.historyCount.textContent = state.authUser
+    ? `${sessions.length} saved session${sessions.length === 1 ? "" : "s"}`
+    : "Sign in to save sessions";
+  if (!sessions.length) {
+    const empty = document.createElement("p");
+    empty.className = "review-empty";
+    empty.textContent = state.authUser
+      ? "Finish a scene to keep its full conversation here."
+      : "Sign in and complete a scene to keep your conversation history here.";
+    els.sessionHistory.append(empty);
+    return;
+  }
+  sessions.forEach((session) => {
+    const item = document.createElement("button");
+    item.className = "session-item";
+    item.type = "button";
+    const title = document.createElement("strong");
+    title.textContent = session.title || "TalkMate session";
+    const details = document.createElement("span");
+    const turns = Number(session.turns || 0);
+    const score = Number(session.overall);
+    details.textContent = `${formatSessionDate(session.completed_at || session.created_at)} · ${turns} turns${Number.isFinite(score) ? ` · ${score}/10` : ""}`;
+    item.append(title, details);
+    item.addEventListener("click", () => openSessionHistory(session));
+    els.sessionHistory.append(item);
+  });
+}
+
+function openSessionHistory(savedSession) {
+  els.historyTitle.textContent = savedSession.title || "TalkMate session";
+  els.historyMeta.textContent = `${formatSessionDate(savedSession.completed_at || savedSession.created_at)} · ${savedSession.level || "A2"} · ${savedSession.turns || 0} turns`;
+  els.historyTranscript.replaceChildren();
+  const transcript = Array.isArray(savedSession.transcript) ? savedSession.transcript : [];
+  if (!transcript.length) {
+    const note = document.createElement("p");
+    note.textContent = "This older session was saved without a transcript.";
+    els.historyTranscript.append(note);
+  } else {
+    transcript.forEach((turn) => {
+      const item = document.createElement("article");
+      item.className = `history-turn ${turn.role === "user" ? "user" : "partner"}`;
+      const label = document.createElement("span");
+      label.textContent = turn.role === "user" ? "YOU" : "YOUR PARTNER";
+      const text = document.createElement("p");
+      text.textContent = turn.text || "";
+      item.append(label, text);
+      els.historyTranscript.append(item);
+    });
+  }
+  els.historyModal.classList.remove("hidden");
+}
+
+function closeSessionHistory() {
+  els.historyModal.classList.add("hidden");
+}
+
 function iconText(icon) {
   return { cup: "cafe", map: "map", home: "home", phone: "call", doctor: "care", key: "rent", plate: "dish", globe: "world", briefcase: "work", spark: "idea", handshake: "meet", presentation: "pitch" }[icon] || "talk";
 }
@@ -413,6 +520,7 @@ async function startScenario(index) {
   state.lastPartnerReply = data.opening;
   state.completed = false;
   state.sessionStartedAt = Date.now();
+  state.sessionId = eventId("session");
   state.englishOnly = getLearnerProfile().englishOnly;
   renderPractice(data.opening);
   showView("practice");
@@ -498,17 +606,16 @@ async function loadAccount() {
     const response = await fetch("/api/auth/me");
     const data = await response.json();
     state.authUser = data.user || null;
-    updateAccountUI();
-    if (state.authUser) {
+    state.csrfToken = data.csrf_token || null;
+  updateAccountUI();
+  renderSessionHistory();
+  if (state.authUser) {
       const sync = await fetch("/api/sync");
       if (sync.ok) {
         const remote = await sync.json();
-        if (remote.progress && Object.keys(remote.progress).length > 2) {
-          const local = getProgress();
-          const merged = { ...local, ...remote.progress };
-          saveProgress(merged);
-          updateProgressUI();
-        }
+        state.sessions = Array.isArray(remote.sessions) ? remote.sessions : [];
+        renderSessionHistory();
+        if (remote.progress) await syncProgress(getProgress());
       }
     }
   } catch {
@@ -534,13 +641,15 @@ async function submitAuth(event) {
   submit.disabled = true;
   els.authError.textContent = "";
   try {
-    const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const response = await fetch(endpoint, { method: "POST", headers: syncHeaders(), body: JSON.stringify(body) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not sign in.");
     state.authUser = data.user;
+    state.csrfToken = data.csrf_token || null;
     closeAuth();
     updateAccountUI();
     await syncProgress();
+    await loadAccount();
   } catch (error) {
     els.authError.textContent = error.message;
   } finally {
@@ -554,8 +663,11 @@ async function toggleAccount() {
     return;
   }
   if (!confirm("Sign out of TalkMate? Your local progress will stay on this device.")) return;
-  await fetch("/api/auth/logout", { method: "POST" });
+  await fetch("/api/auth/logout", { method: "POST", headers: syncHeaders() });
   state.authUser = null;
+  state.csrfToken = null;
+  state.sessions = [];
+  renderSessionHistory();
   updateAccountUI();
 }
 
@@ -678,12 +790,15 @@ function recordSession(data) {
   const progress = getProgress();
   const sceneId = `${state.level.id}-${state.scenarioIndex}`;
   if (!progress.completed.includes(sceneId)) progress.completed.push(sceneId);
-  progress.scores.push(data.overall);
-  if (progress.scores.length > 30) progress.scores.shift();
+  progress.scoreEvents ||= [];
+  progress.scoreEvents.push({ id: eventId("score"), score: data.overall, at: new Date().toISOString() });
+  progress.scoreEvents = progress.scoreEvents.slice(-30);
+  progress.scores = progress.scoreEvents.map((event) => event.score);
   const today = dayStamp();
   if (!progress.activeDays.includes(today)) progress.activeDays.push(today);
   const momentum = ensureMomentum(progress);
   momentum.dailyMinutes[today] = Math.min(5, (momentum.dailyMinutes[today] || 0) + 5);
+  momentum.xpEvents.push({ id: eventId("xp"), amount: 35, at: new Date().toISOString() });
   momentum.xp += 35;
   evaluateBadges(progress);
   saveProgress(progress);
@@ -696,17 +811,27 @@ async function saveCompletedSession(data) {
   try {
     await fetch("/api/sessions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: syncHeaders(),
       body: JSON.stringify({
         title: state.scenario.title,
+        client_id: state.sessionId,
         session: {
           level: getLearnerProfile().proficiency,
           overall: data.overall,
           turns: state.history.filter((turn) => turn.role === "user").length,
           completed_at: new Date().toISOString(),
+          transcript: state.history,
         },
       }),
     });
+    const responseData = await response.json();
+    if (!response.ok) throw new Error(responseData.error || "Could not save session");
+    const sync = await fetch("/api/sync");
+    if (sync.ok) {
+      const data = await sync.json();
+      state.sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      renderSessionHistory();
+    }
   } catch {
     // Progress sync still preserves the key learning data if session history fails.
   }
@@ -772,8 +897,11 @@ function finishChallenge(fullMinute) {
   if (fullMinute) {
     const progress = getProgress();
     const momentum = ensureMomentum(progress);
+    momentum.challengeEvents.push({ id: eventId("challenge"), amount: 1, at: new Date().toISOString() });
     momentum.challenges += 1;
-    momentum.xp += speakingEnough ? 55 : 35;
+    const xp = speakingEnough ? 55 : 35;
+    momentum.xpEvents.push({ id: eventId("xp"), amount: xp, at: new Date().toISOString() });
+    momentum.xp += xp;
     const today = dayStamp();
     momentum.dailyMinutes[today] = Math.min(5, (momentum.dailyMinutes[today] || 0) + 1);
     if (!progress.activeDays.includes(today)) progress.activeDays.push(today);
@@ -990,6 +1118,7 @@ $("#btn-again").addEventListener("click", () => showView("home"));
 $("#btn-progress").addEventListener("click", () => { updateProgressUI(); showView("progress"); });
 els.account.addEventListener("click", toggleAccount);
 $("#btn-close-auth").addEventListener("click", closeAuth);
+$("#btn-close-history").addEventListener("click", closeSessionHistory);
 els.authLoginTab.addEventListener("click", () => setAuthMode("login"));
 els.authRegisterTab.addEventListener("click", () => setAuthMode("register"));
 els.authForm.addEventListener("submit", submitAuth);

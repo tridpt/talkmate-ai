@@ -30,7 +30,13 @@ FLASK_HOST = os.environ.get("FLASK_HOST", "127.0.0.1")
 FLASK_PORT = int(os.environ.get("FLASK_PORT", "5001"))
 FLASK_DEBUG = _env_bool("FLASK_DEBUG", False)
 DATABASE_PATH = Path(os.environ.get("TALKMATE_DB", str(Path(__file__).parent / "talkmate.db")))
-SECRET_KEY = os.environ.get("TALKMATE_SECRET_KEY", "") or secrets.token_hex(32)
+_configured_secret = os.environ.get("TALKMATE_SECRET_KEY", "").strip()
+SECRET_KEY = _configured_secret or secrets.token_hex(32)
+SECRET_KEY_CONFIGURED = bool(_configured_secret)
+SESSION_COOKIE_SECURE = _env_bool("TALKMATE_SESSION_SECURE", False)
+MAX_REQUEST_BYTES = int(os.environ.get("TALKMATE_MAX_REQUEST_BYTES", "102400"))
+AUTH_RATE_LIMIT = int(os.environ.get("TALKMATE_AUTH_RATE_LIMIT", "10"))
+AUTH_RATE_WINDOW_SECONDS = int(os.environ.get("TALKMATE_AUTH_RATE_WINDOW_SECONDS", "60"))
 
 
 def ai_enabled() -> bool:

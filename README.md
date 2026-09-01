@@ -20,7 +20,7 @@ GEMINI_MODEL=gemini-2.5-flash
 
 ## What is included
 
-- Six role-play scenes across everyday and work contexts.
+- Twelve role-play scenes across everyday and work contexts.
 - A focused coach note after each response, including a natural rewrite when needed.
 - Browser speech recognition for speaking replies where supported.
 - Text-to-speech playback for partner replies.
@@ -30,7 +30,7 @@ GEMINI_MODEL=gemini-2.5-flash
 - Review Studio automatically creates small rewrite exercises from corrected learner sentences.
 - Daily five-minute mission, XP, levels, streak, and unlockable badges.
 - A 60-second Brave Mode speaking challenge with live transcript where browser speech recognition is available.
-- Ten practical scenes, including phone calls, doctor visits, apartment rental, restaurant ordering, presentations, and meeting international travelers.
+- Practical scenes include phone calls, doctor visits, apartment rental, restaurant ordering, presentations, and meeting international travelers.
 - Local TalkMate accounts with hashed passwords, cross-device progress sync through the server, completed-session history, and a seven-day activity chart.
 
 ## Pronunciation note
@@ -39,4 +39,4 @@ The pronunciation feature uses the browser's English speech recognition confiden
 
 ## Accounts and sync
 
-Create an account from the **Sign in** button to sync learning data. When running locally, this stores data in `talkmate.db` on that computer. For multiple devices, deploy the same project to a shared host or run it on the same local network with a fixed `TALKMATE_SECRET_KEY`; both devices must open that same server address.
+Create an account from the **Sign in** button to sync learning data. Progress is merged safely between devices, and completed scenes retain their transcript in **Past conversations**. When running locally, this stores data in `talkmate.db` on that computer. For multiple devices, deploy the same project to a shared host or run it on a trusted local network with a fixed `TALKMATE_SECRET_KEY`; both devices must open that same server address. Set `FLASK_HOST=0.0.0.0` only for a trusted network, and use HTTPS with `TALKMATE_SESSION_SECURE=true` for public deployment.
