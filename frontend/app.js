@@ -1,5 +1,7 @@
 const state = {
   levels: [],
+  sentenceLibrary: [],
+  activeLibraryCategory: "polite-questions",
   activeLevelId: "everyday",
   level: null,
   scenario: null,
@@ -92,6 +94,9 @@ const els = {
   progress: $("#progress-view"),
   levels: $("#levels"),
   scenarios: $("#scenario-list"),
+  libraryCount: $("#library-count"),
+  libraryCategories: $("#library-categories"),
+  libraryCards: $("#library-cards"),
   badge: $("#ai-badge"),
   lessonCount: $("#lesson-count"),
   title: $("#sc-title"),
@@ -580,6 +585,87 @@ function renderLevels() {
       renderScenarios();
     });
     els.levels.append(button);
+  });
+}
+
+async function copyLibraryText(text, button) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const original = button.textContent;
+    button.textContent = "Copied";
+    window.setTimeout(() => { button.textContent = original; }, 1200);
+  } catch {
+    button.textContent = "Select & copy";
+  }
+}
+
+function renderSentenceLibrary(categoryId = state.activeLibraryCategory) {
+  const categories = Array.isArray(state.sentenceLibrary) ? state.sentenceLibrary : [];
+  if (!els.libraryCategories || !els.libraryCards) return;
+  els.libraryCategories.replaceChildren();
+  els.libraryCards.replaceChildren();
+  if (!categories.length) {
+    els.libraryCount.textContent = "Offline phrase bank";
+    const empty = document.createElement("p");
+    empty.className = "library-empty";
+    empty.textContent = "Phrase library is loading...";
+    els.libraryCards.append(empty);
+    return;
+  }
+  const active = categories.find((category) => category.id === categoryId) || categories[0];
+  state.activeLibraryCategory = active.id;
+  const itemCount = categories.reduce((total, category) => total + (category.items || []).length, 0);
+  els.libraryCount.textContent = `${itemCount} useful patterns`;
+
+  categories.forEach((category) => {
+    const tab = document.createElement("button");
+    tab.className = `library-tab${category.id === active.id ? " active" : ""}`;
+    tab.type = "button";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", category.id === active.id ? "true" : "false");
+    tab.textContent = category.label;
+    tab.addEventListener("click", () => renderSentenceLibrary(category.id));
+    els.libraryCategories.append(tab);
+  });
+
+  (active.items || []).forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "library-card";
+    const title = document.createElement("h3");
+    title.textContent = item.title;
+    const structureLabel = document.createElement("span");
+    structureLabel.className = "library-label";
+    structureLabel.textContent = "STRUCTURE";
+    const structure = document.createElement("p");
+    structure.className = "library-structure";
+    structure.textContent = item.structure;
+    const whenLabel = document.createElement("span");
+    whenLabel.className = "library-label";
+    whenLabel.textContent = "WHEN TO USE IT";
+    const when = document.createElement("p");
+    when.className = "library-when";
+    when.textContent = item.when;
+    const variantsLabel = document.createElement("span");
+    variantsLabel.className = "library-label";
+    variantsLabel.textContent = "NATURAL VARIATIONS";
+    const variants = document.createElement("div");
+    variants.className = "library-variants";
+    (item.examples || []).forEach((example) => {
+      const row = document.createElement("div");
+      row.className = "library-example";
+      const text = document.createElement("span");
+      text.textContent = example;
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "library-copy";
+      copy.textContent = "Copy";
+      copy.title = "Copy this example";
+      copy.addEventListener("click", () => copyLibraryText(example, copy));
+      row.append(text, copy);
+      variants.append(row);
+    });
+    card.append(title, structureLabel, structure, whenLabel, when, variantsLabel, variants);
+    els.libraryCards.append(card);
   });
 }
 
@@ -1318,14 +1404,17 @@ function toggleListening() {
 
 async function loadApp() {
   try {
-    const [healthResponse, levelResponse] = await Promise.all([fetch("/api/health"), fetch("/api/levels")]);
+    const [healthResponse, levelResponse, libraryResponse] = await Promise.all([fetch("/api/health"), fetch("/api/levels"), fetch("/api/sentence-library")]);
     const health = await healthResponse.json();
     const data = await levelResponse.json();
+    const libraryData = await libraryResponse.json();
     state.levels = data.levels;
+    state.sentenceLibrary = Array.isArray(libraryData.categories) ? libraryData.categories : [];
     els.badge.textContent = health.ai ? "AI coach is live" : "Guided practice mode";
     els.badge.classList.toggle("offline", !health.ai);
     renderLevels();
     renderScenarios();
+    renderSentenceLibrary();
   } catch {
     els.badge.textContent = "Coach offline";
     els.badge.classList.add("offline");

@@ -39,6 +39,9 @@ GEMINI_MODEL=gemini-2.5-flash
 - A focused coach note after each response, including a natural rewrite when needed.
 - Grammar, word-choice, and sentence-pattern notes after each response.
 - A situation-specific Sentence Builder with reusable frames and fill-in slots.
+- An offline Sentence Library grouped by purpose: polite questions, graceful refusals,
+  clarification, opinions, and agreement/disagreement, with structures, usage notes,
+  natural variations, and one-click copying.
 - Browser speech recognition for speaking replies where supported.
 - Text-to-speech playback for partner replies.
 - Speech clarity check after a microphone reply, including words to rehearse and slow/normal playback.

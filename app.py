@@ -159,6 +159,11 @@ def api_levels():
     })
 
 
+@app.route("/api/sentence-library")
+def api_sentence_library():
+    return jsonify({"categories": scenarios.sentence_library()})
+
+
 @app.route("/api/start", methods=["POST"])
 def api_start():
     data = request_data()

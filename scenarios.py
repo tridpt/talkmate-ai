@@ -427,6 +427,162 @@ SENTENCE_BUILDERS = {
 }
 
 
+# A compact, reusable phrase library for common communication goals. Keep the
+# explanations local so the feature works without an AI key or network call.
+SENTENCE_LIBRARY = [
+    {
+        "id": "polite-questions",
+        "label": "Hỏi lịch sự",
+        "english_label": "Ask politely",
+        "description": "Mở đầu câu hỏi mềm mại hơn trong quán, công việc và đời sống.",
+        "items": [
+            {
+                "title": "Could you ...?",
+                "structure": "Could you + động từ nguyên mẫu + ...?",
+                "when": "Dùng khi muốn nhờ ai đó làm hoặc cung cấp thông tin một cách lịch sự.",
+                "examples": [
+                    "Could you tell me where the station is?",
+                    "Would you mind sending me the details?",
+                    "I'd appreciate it if you could check again.",
+                ],
+            },
+            {
+                "title": "I'd like to ...",
+                "structure": "I'd like to + động từ + ...",
+                "when": "Dùng để nói mong muốn hoặc yêu cầu mà không nghe quá trực tiếp.",
+                "examples": [
+                    "I'd like to change my reservation, please.",
+                    "I'd like to ask one quick question.",
+                    "Could I have a coffee for here, please?",
+                ],
+            },
+            {
+                "title": "Would it be possible to ...?",
+                "structure": "Would it be possible to + động từ + ...?",
+                "when": "Dùng khi yêu cầu cần sự linh hoạt hoặc phụ thuộc vào khả năng của người nghe.",
+                "examples": [
+                    "Would it be possible to move the meeting?",
+                    "Would it be possible to get a quieter room?",
+                    "Is there any chance we could start earlier?",
+                ],
+            },
+        ],
+    },
+    {
+        "id": "polite-refusals",
+        "label": "Từ chối khéo",
+        "english_label": "Decline gracefully",
+        "description": "Giữ thiện cảm khi bạn chưa thể nhận lời hoặc không đồng ý.",
+        "items": [
+            {
+                "title": "I'd love to, but ...",
+                "structure": "I'd love to, but + lý do.",
+                "when": "Dùng khi thật sự muốn thể hiện thiện chí trước khi đưa ra lý do từ chối.",
+                "examples": [
+                    "I'd love to, but I already have plans.",
+                    "I'd love to help, but I'm up against a deadline.",
+                    "That sounds great, but I can't make it this time.",
+                ],
+            },
+            {
+                "title": "I'm afraid I can't ...",
+                "structure": "I'm afraid I can't + động từ + ...",
+                "when": "Dùng trong tình huống lịch sự, chuyên nghiệp khi câu trả lời là không.",
+                "examples": [
+                    "I'm afraid I can't join the call today.",
+                    "I'm afraid we can't offer a refund after thirty days.",
+                    "Unfortunately, I won't be able to attend.",
+                ],
+            },
+        ],
+    },
+    {
+        "id": "clarification",
+        "label": "Xin làm rõ",
+        "english_label": "Ask for clarity",
+        "description": "Xin thêm thông tin mà không làm gián đoạn cuộc trò chuyện.",
+        "items": [
+            {
+                "title": "Could you clarify ...?",
+                "structure": "Could you clarify + danh từ / mệnh đề?",
+                "when": "Dùng khi bạn hiểu một phần nhưng cần người kia nói rõ điểm chính.",
+                "examples": [
+                    "Could you clarify what you mean by 'urgent'?",
+                    "Could you clarify the next step?",
+                    "When you say 'later', do you mean this afternoon?",
+                ],
+            },
+            {
+                "title": "Do you mean ...?",
+                "structure": "Do you mean + ý bạn muốn xác nhận?",
+                "when": "Dùng để kiểm tra mình đã hiểu đúng ý người nói chưa.",
+                "examples": [
+                    "Do you mean the check-in date or the booking date?",
+                    "Do you mean we should test it today?",
+                    "So, just to confirm, you need it by Friday?",
+                ],
+            },
+        ],
+    },
+    {
+        "id": "opinions",
+        "label": "Nêu ý kiến",
+        "english_label": "Share an opinion",
+        "description": "Nêu quan điểm rõ ràng nhưng vẫn mở cửa cho trao đổi.",
+        "items": [
+            {
+                "title": "I think ... because ...",
+                "structure": "I think + ý kiến + because + lý do.",
+                "when": "Dùng để nêu ý kiến cơ bản và thêm lý do để người nghe dễ theo dõi.",
+                "examples": [
+                    "I think we should start small because we have limited time.",
+                    "I think this option is better because it is easier to maintain.",
+                    "In my view, the simpler plan is safer.",
+                ],
+            },
+            {
+                "title": "From my perspective, ...",
+                "structure": "From my perspective, + nhận xét.",
+                "when": "Dùng trong thảo luận công việc khi muốn nhấn mạnh đây là góc nhìn của mình.",
+                "examples": [
+                    "From my perspective, the main risk is the timeline.",
+                    "From my perspective, the customer needs a clearer choice.",
+                    "One concern I have is the extra cost.",
+                ],
+            },
+        ],
+    },
+    {
+        "id": "agreement-disagreement",
+        "label": "Đồng ý / không đồng ý",
+        "english_label": "Agree or disagree",
+        "description": "Phản hồi quan điểm của người khác mà vẫn giữ cuộc nói chuyện tích cực.",
+        "items": [
+            {
+                "title": "That makes sense.",
+                "structure": "That makes sense. + thêm lý do hoặc bước tiếp theo.",
+                "when": "Dùng để đồng ý với lập luận, không chỉ trả lời 'yes'.",
+                "examples": [
+                    "That makes sense. Let's try it with one small group.",
+                    "I agree - the timing is much better this way.",
+                    "Exactly. That's how I see it too.",
+                ],
+            },
+            {
+                "title": "I see your point, but ...",
+                "structure": "I see your point, but + quan điểm khác.",
+                "when": "Dùng để không đồng ý một cách tôn trọng và chuyển sang lý do của bạn.",
+                "examples": [
+                    "I see your point, but we need more evidence first.",
+                    "I understand the concern, but this is the fastest option.",
+                    "I'm not sure I agree because the cost is too high.",
+                ],
+            },
+        ],
+    },
+]
+
+
 def sentence_builder_for(scenario: dict):
     """Return a reusable sentence frame for the selected real-life situation."""
     return SENTENCE_BUILDERS.get(scenario.get("icon"), SENTENCE_BUILDERS["home"])
@@ -439,6 +595,11 @@ def conversation_flow_for(scenario: dict):
         {"id": goal["id"], "label": goal["label"]}
         for goal in flow.get("goals", [])
     ]
+
+
+def sentence_library():
+    """Return the offline phrase library for the browser client."""
+    return SENTENCE_LIBRARY
 
 
 def level_list():
