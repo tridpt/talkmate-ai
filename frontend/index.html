@@ -61,6 +61,16 @@
         </div>
       </section>
 
+      <section id="context-lab" class="context-lab reveal delay-1">
+        <div class="section-heading library-heading"><div><p class="eyebrow">CONTEXT LAB</p><h2>Tự đặt câu theo tình huống.</h2><p class="section-subtitle">Đọc ý tiếng Việt, tự viết câu tiếng Anh, rồi nhận sửa và lưu lỗi cần ôn.</p></div><span id="exercise-level" class="lesson-count"></span></div>
+        <div class="context-lab-card">
+          <div class="exercise-prompt"><span class="prompt-label">YOUR PROMPT</span><strong id="exercise-prompt"></strong><p id="exercise-situation"></p><span id="exercise-focus" class="exercise-focus"></span></div>
+          <label class="sr-only" for="exercise-input">Your English sentence</label><textarea id="exercise-input" rows="3" maxlength="600" placeholder="Write one English sentence..."></textarea>
+          <div class="exercise-actions"><button id="btn-check-exercise" class="primary-button" type="button">Check my sentence <span aria-hidden="true">-></span></button><button id="btn-next-exercise" class="voice-button" type="button">New prompt <span aria-hidden="true">↻</span></button></div>
+          <div id="exercise-result" class="exercise-result hidden"><div class="exercise-result-head"><p class="eyebrow">COACH CHECK</p><strong id="exercise-score"></strong></div><p id="exercise-feedback"></p><p id="exercise-guard" class="guard-reason hidden"></p><div id="exercise-correction" class="exercise-correction hidden"><span>TRY THIS</span><strong id="exercise-improved"></strong></div><div class="exercise-notes"><div><span>GRAMMAR</span><p id="exercise-grammar"></p></div><div><span>SENTENCE</span><p id="exercise-sentence"></p></div></div><p id="exercise-saved" class="exercise-saved hidden">Đã thêm câu này vào Sổ lỗi cá nhân để ôn lại.</p></div>
+        </div>
+      </section>
+
       <div class="section-heading reveal delay-1"><div><p class="eyebrow">PICK A MOMENT</p><h2>What do you want to practice?</h2></div><span id="lesson-count" class="lesson-count"></span></div>
       <div id="levels" class="level-tabs reveal delay-2" aria-label="Practice paths"></div>
       <div id="scenario-list" class="scenario-grid reveal delay-2"></div>

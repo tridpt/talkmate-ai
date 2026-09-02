@@ -42,6 +42,8 @@ GEMINI_MODEL=gemini-2.5-flash
 - An offline Sentence Library grouped by purpose: polite questions, graceful refusals,
   clarification, opinions, and agreement/disagreement, with structures, usage notes,
   natural variations, and one-click copying.
+- A Context Lab with Vietnamese prompts, offline sentence correction, and automatic
+  saving of corrected attempts to the Personal Error Notebook.
 - Browser speech recognition for speaking replies where supported.
 - Text-to-speech playback for partner replies.
 - Speech clarity check after a microphone reply, including words to rehearse and slow/normal playback.

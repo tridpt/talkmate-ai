@@ -721,3 +721,77 @@ def _review_offline(message: str, scenario: dict, learner: dict, english_only: b
             scores["confidence"] = 8
 
     return scores, feedback, improved, tip, grammar_note, word_choice_note, sentence_pattern
+
+
+def review_sentence_exercise(message: str, exercise: dict, english_only: bool = False) -> dict:
+    """Review a free sentence against a Vietnamese context prompt offline."""
+    text = (message or "").strip()
+    exercise = exercise if isinstance(exercise, dict) else {}
+    public_exercise = {
+        "id": str(exercise.get("id") or "").strip()[:60],
+        "level": str(exercise.get("level") or "A2").strip()[:20],
+        "prompt": str(exercise.get("prompt") or "").strip()[:240],
+        "situation": str(exercise.get("situation") or "").strip()[:240],
+        "focus": str(exercise.get("focus") or "").strip()[:100],
+        "hint_en": str(exercise.get("hint_en") or "").strip()[:120],
+    }
+    if not text:
+        result = _normalize(
+            {
+                "reply": "Write one English sentence for this prompt.",
+                "feedback": "Hãy viết một câu tiếng Anh trước khi mình sửa nhé.",
+                "scores": {},
+                "scored": False,
+                "off_topic": True,
+                "guard_reason": "incomplete",
+                "done": False,
+            },
+            mode="offline",
+        )
+        result["exercise"] = public_exercise
+        return result
+    if _has_blocked_language(text):
+        feedback = "Please write your answer in English so I can correct the sentence." if english_only else "Hãy viết câu trả lời bằng tiếng Anh để mình sửa câu nhé."
+        result = _normalize(
+            {
+                "reply": "Try the same idea in English.",
+                "feedback": feedback,
+                "scores": {},
+                "scored": False,
+                "off_topic": True,
+                "guard_reason": "language",
+                "done": False,
+            },
+            mode="offline",
+        )
+        result["exercise"] = public_exercise
+        return result
+
+    scenario = {
+        "title": public_exercise["id"] or "Sentence exercise",
+        "context": public_exercise["prompt"],
+        "starter": public_exercise["hint_en"] or "Write one clear sentence.",
+    }
+    scores, feedback, improved, tip, grammar_note, word_choice_note, sentence_pattern = _review_offline(
+        text, scenario, {}, english_only
+    )
+    result = _normalize(
+        {
+            "reply": "Good attempt. Compare your sentence with the improved version below.",
+            "feedback": feedback,
+            "improved": improved,
+            "tip": tip,
+            "grammar_note": grammar_note,
+            "word_choice_note": word_choice_note,
+            "sentence_pattern": sentence_pattern,
+            "scores": scores,
+            "scored": True,
+            "off_topic": False,
+            "guard_reason": None,
+            "done": False,
+        },
+        mode="offline",
+    )
+    result["exercise"] = public_exercise
+    result["saved_to_notebook"] = bool(improved and improved.strip().lower() != text.lower())
+    return result

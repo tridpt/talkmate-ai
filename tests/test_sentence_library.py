@@ -40,6 +40,36 @@ class SentenceLibraryTests(unittest.TestCase):
         self.assertEqual(len(payload["categories"]), 5)
         self.assertIn("Could you tell me where the station is?", str(payload))
 
+    def test_context_exercise_returns_correction_for_notebook(self):
+        response = server.app.test_client().post(
+            "/api/sentence-exercise",
+            json={
+                "exercise_id": "cafe-order",
+                "message": "I want reservation",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["scored"])
+        self.assertEqual(payload["improved"], "I want a reservation")
+        self.assertTrue(payload["saved_to_notebook"])
+        self.assertEqual(payload["exercise"]["id"], "cafe-order")
+
+    def test_context_exercise_does_not_score_vietnamese_text(self):
+        response = server.app.test_client().post(
+            "/api/sentence-exercise",
+            json={
+                "exercise_id": "directions",
+                "message": "Tôi muốn hỏi đường đến ga tàu",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertFalse(payload["scored"])
+        self.assertEqual(payload["guard_reason"], "language")
+
 
 if __name__ == "__main__":
     unittest.main()

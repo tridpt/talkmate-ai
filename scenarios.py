@@ -583,6 +583,90 @@ SENTENCE_LIBRARY = [
 ]
 
 
+SENTENCE_EXERCISES = [
+    {
+        "id": "cafe-order",
+        "level": "A1-A2",
+        "prompt": "Bạn đang ở quán cà phê và muốn gọi một ly latte mang đi.",
+        "situation": "Nói rõ món bạn muốn và thêm một chi tiết hữu ích.",
+        "focus": "Yêu cầu lịch sự",
+        "hint_en": "I'd like ... , please.",
+    },
+    {
+        "id": "directions",
+        "level": "A2",
+        "prompt": "Bạn bị lạc và muốn hỏi đường đến ga tàu gần nhất.",
+        "situation": "Hỏi một người địa phương bằng giọng lịch sự.",
+        "focus": "Câu hỏi lịch sự",
+        "hint_en": "Could you tell me ...?",
+    },
+    {
+        "id": "clarify-task",
+        "level": "A2-B1",
+        "prompt": "Bạn chưa hiểu yêu cầu công việc và muốn xin đồng nghiệp giải thích thêm.",
+        "situation": "Cho thấy bạn đã nghe, sau đó hỏi đúng điểm chưa rõ.",
+        "focus": "Xin làm rõ",
+        "hint_en": "Could you clarify ...?",
+    },
+    {
+        "id": "decline-invitation",
+        "level": "A2-B1",
+        "prompt": "Một người bạn rủ bạn đi chơi cuối tuần nhưng bạn đã có kế hoạch.",
+        "situation": "Từ chối nhưng vẫn thể hiện thiện chí.",
+        "focus": "Từ chối khéo",
+        "hint_en": "I'd love to, but ...",
+    },
+    {
+        "id": "share-opinion",
+        "level": "B1",
+        "prompt": "Bạn muốn nói kế hoạch đơn giản hơn sẽ tốt hơn vì nhóm chỉ còn ít thời gian.",
+        "situation": "Nêu ý kiến và đưa ra một lý do cụ thể.",
+        "focus": "Nêu ý kiến",
+        "hint_en": "I think ... because ...",
+    },
+    {
+        "id": "disagree-respectfully",
+        "level": "B1-B2",
+        "prompt": "Bạn không đồng ý với đề xuất vì chi phí quá cao, nhưng muốn phản hồi tôn trọng.",
+        "situation": "Công nhận một phần ý kiến trước khi nêu quan điểm khác.",
+        "focus": "Không đồng ý lịch sự",
+        "hint_en": "I see your point, but ...",
+    },
+    {
+        "id": "move-reservation",
+        "level": "A2-B1",
+        "prompt": "Bạn gọi khách sạn để xin đổi ngày nhận phòng sang thứ Sáu.",
+        "situation": "Nêu lý do gọi và yêu cầu thay đổi rõ ràng.",
+        "focus": "Yêu cầu trong cuộc gọi",
+        "hint_en": "I'm calling about ... Could I ...?",
+    },
+    {
+        "id": "allergy-order",
+        "level": "A2-B1",
+        "prompt": "Bạn bị dị ứng đậu phộng và muốn gọi món không có thành phần này.",
+        "situation": "Nói về dị ứng trước rồi đưa ra yêu cầu an toàn.",
+        "focus": "Nêu vấn đề và yêu cầu",
+        "hint_en": "I'm allergic to ... Could I have ... without it?",
+    },
+    {
+        "id": "introduce-yourself",
+        "level": "A1-A2",
+        "prompt": "Bạn gặp một người mới ở sự kiện và muốn giới thiệu bản thân.",
+        "situation": "Nói bạn làm gì và hỏi một câu mở để tiếp tục trò chuyện.",
+        "focus": "Mở đầu cuộc trò chuyện",
+        "hint_en": "I'm ... What do you ...?",
+    },
+    {
+        "id": "next-step",
+        "level": "B1-B2",
+        "prompt": "Sau cuộc họp, bạn muốn xác nhận bước tiếp theo với cả nhóm.",
+        "situation": "Tóm tắt hành động cụ thể và mốc thời gian.",
+        "focus": "Xác nhận kế hoạch",
+        "hint_en": "So, the next step is ... by ...",
+    },
+]
+
+
 def sentence_builder_for(scenario: dict):
     """Return a reusable sentence frame for the selected real-life situation."""
     return SENTENCE_BUILDERS.get(scenario.get("icon"), SENTENCE_BUILDERS["home"])
@@ -600,6 +684,11 @@ def conversation_flow_for(scenario: dict):
 def sentence_library():
     """Return the offline phrase library for the browser client."""
     return SENTENCE_LIBRARY
+
+
+def sentence_exercises():
+    """Return contextual prompts for offline sentence-writing practice."""
+    return SENTENCE_EXERCISES
 
 
 def level_list():

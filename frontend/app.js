@@ -2,6 +2,9 @@ const state = {
   levels: [],
   sentenceLibrary: [],
   activeLibraryCategory: "polite-questions",
+  sentenceExercises: [],
+  exerciseIndex: 0,
+  exerciseBusy: false,
   activeLevelId: "everyday",
   level: null,
   scenario: null,
@@ -97,6 +100,22 @@ const els = {
   libraryCount: $("#library-count"),
   libraryCategories: $("#library-categories"),
   libraryCards: $("#library-cards"),
+  exerciseLevel: $("#exercise-level"),
+  exercisePrompt: $("#exercise-prompt"),
+  exerciseSituation: $("#exercise-situation"),
+  exerciseFocus: $("#exercise-focus"),
+  exerciseInput: $("#exercise-input"),
+  exerciseCheck: $("#btn-check-exercise"),
+  exerciseNext: $("#btn-next-exercise"),
+  exerciseResult: $("#exercise-result"),
+  exerciseScore: $("#exercise-score"),
+  exerciseFeedback: $("#exercise-feedback"),
+  exerciseGuard: $("#exercise-guard"),
+  exerciseCorrection: $("#exercise-correction"),
+  exerciseImproved: $("#exercise-improved"),
+  exerciseGrammar: $("#exercise-grammar"),
+  exerciseSentence: $("#exercise-sentence"),
+  exerciseSaved: $("#exercise-saved"),
   badge: $("#ai-badge"),
   lessonCount: $("#lesson-count"),
   title: $("#sc-title"),
@@ -667,6 +686,81 @@ function renderSentenceLibrary(categoryId = state.activeLibraryCategory) {
     card.append(title, structureLabel, structure, whenLabel, when, variantsLabel, variants);
     els.libraryCards.append(card);
   });
+}
+
+function renderSentenceExercise() {
+  const exercises = Array.isArray(state.sentenceExercises) ? state.sentenceExercises : [];
+  if (!els.exercisePrompt) return;
+  if (!exercises.length) {
+    els.exerciseLevel.textContent = "Offline practice";
+    els.exercisePrompt.textContent = "Bài tập đang tải...";
+    els.exerciseSituation.textContent = "";
+    els.exerciseFocus.textContent = "";
+    return;
+  }
+  const exercise = exercises[state.exerciseIndex % exercises.length];
+  els.exerciseLevel.textContent = `${exercise.level || "A2"} · ${exercises.length} prompts`;
+  els.exercisePrompt.textContent = exercise.prompt || "Write one English sentence.";
+  els.exerciseSituation.textContent = exercise.situation || "Say one complete sentence for this context.";
+  els.exerciseFocus.textContent = exercise.focus || "CONTEXT PRACTICE";
+  els.exerciseInput.value = "";
+  els.exerciseResult.classList.add("hidden");
+  els.exerciseCorrection.classList.add("hidden");
+  els.exerciseGuard.classList.add("hidden");
+  els.exerciseSaved.classList.add("hidden");
+}
+
+function renderSentenceExerciseResult(data) {
+  const scored = data.scored !== false && !data.off_topic;
+  els.exerciseResult.classList.remove("hidden");
+  els.exerciseScore.textContent = scored && data.overall != null ? `${data.overall} / 10` : "NO SCORE";
+  els.exerciseFeedback.textContent = data.feedback || "Try the sentence once more.";
+  els.exerciseGrammar.textContent = data.grammar_note || "";
+  els.exerciseSentence.textContent = data.sentence_pattern || "";
+  els.exerciseGuard.classList.toggle("hidden", scored);
+  els.exerciseGuard.textContent = scored ? "" : (guardReasonLabels[data.guard_reason] || "NO SCORE - write one English sentence");
+  const improved = (data.improved || "").trim();
+  els.exerciseCorrection.classList.toggle("hidden", !improved);
+  els.exerciseImproved.textContent = improved;
+  els.exerciseSaved.classList.toggle("hidden", !data.saved_to_notebook);
+}
+
+async function checkSentenceExercise() {
+  if (state.exerciseBusy || !state.sentenceExercises.length) return;
+  const message = els.exerciseInput.value.trim();
+  if (!message) {
+    renderSentenceExerciseResult({ scored: false, off_topic: true, guard_reason: "incomplete", feedback: "Hãy viết một câu tiếng Anh trước khi mình sửa nhé." });
+    return;
+  }
+  const exercise = state.sentenceExercises[state.exerciseIndex % state.sentenceExercises.length];
+  state.exerciseBusy = true;
+  els.exerciseCheck.disabled = true;
+  els.exerciseNext.disabled = true;
+  try {
+    const response = await fetch("/api/sentence-exercise", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        exercise_id: exercise.id,
+        message,
+        english_only: getLearnerProfile().englishOnly,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Exercise unavailable");
+    if (data.scored && data.improved) {
+      saveReviewItem(message, data);
+      updateLearningMemory(message, data);
+      data.saved_to_notebook = true;
+    }
+    renderSentenceExerciseResult(data);
+  } catch (error) {
+    renderSentenceExerciseResult({ scored: false, off_topic: true, guard_reason: "off_topic", feedback: error.message || "Không thể chấm câu lúc này." });
+  } finally {
+    state.exerciseBusy = false;
+    els.exerciseCheck.disabled = false;
+    els.exerciseNext.disabled = false;
+  }
 }
 
 function getActiveLevel() {
@@ -1404,17 +1498,20 @@ function toggleListening() {
 
 async function loadApp() {
   try {
-    const [healthResponse, levelResponse, libraryResponse] = await Promise.all([fetch("/api/health"), fetch("/api/levels"), fetch("/api/sentence-library")]);
+    const [healthResponse, levelResponse, libraryResponse, exerciseResponse] = await Promise.all([fetch("/api/health"), fetch("/api/levels"), fetch("/api/sentence-library"), fetch("/api/sentence-exercises")]);
     const health = await healthResponse.json();
     const data = await levelResponse.json();
     const libraryData = await libraryResponse.json();
+    const exerciseData = await exerciseResponse.json();
     state.levels = data.levels;
     state.sentenceLibrary = Array.isArray(libraryData.categories) ? libraryData.categories : [];
+    state.sentenceExercises = Array.isArray(exerciseData.exercises) ? exerciseData.exercises : [];
     els.badge.textContent = health.ai ? "AI coach is live" : "Guided practice mode";
     els.badge.classList.toggle("offline", !health.ai);
     renderLevels();
     renderScenarios();
     renderSentenceLibrary();
+    renderSentenceExercise();
   } catch {
     els.badge.textContent = "Coach offline";
     els.badge.classList.add("offline");
@@ -1467,6 +1564,12 @@ $("#btn-hear-review").addEventListener("click", () => {
   const items = getProgress().reviewItems || [];
   const item = items[state.reviewIndex % items.length];
   if (item) speakAtRate(item.correction, 0.84);
+});
+els.exerciseCheck.addEventListener("click", checkSentenceExercise);
+els.exerciseNext.addEventListener("click", () => {
+  if (state.exerciseBusy) return;
+  state.exerciseIndex += 1;
+  renderSentenceExercise();
 });
 $("#btn-challenge").addEventListener("click", () => { renderChallengePrompt(); showView("challenge"); });
 $("#btn-exit-challenge").addEventListener("click", () => showView("home"));

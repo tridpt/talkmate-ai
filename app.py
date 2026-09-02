@@ -19,7 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import config
 import database
 import scenarios
-from coach import Coach, SCORE_LABELS, pronunciation_check
+from coach import Coach, SCORE_LABELS, pronunciation_check, review_sentence_exercise
 
 # Sửa encoding console trên Windows để in được tiếng Việt.
 try:
@@ -162,6 +162,27 @@ def api_levels():
 @app.route("/api/sentence-library")
 def api_sentence_library():
     return jsonify({"categories": scenarios.sentence_library()})
+
+
+@app.route("/api/sentence-exercises")
+def api_sentence_exercises():
+    return jsonify({"exercises": scenarios.sentence_exercises()})
+
+
+@app.route("/api/sentence-exercise", methods=["POST"])
+def api_sentence_exercise():
+    data = request_data()
+    if data is None:
+        return jsonify({"error": "JSON object expected."}), 400
+    exercise_id = text_value(data.get("exercise_id"), 60)
+    exercise = next((item for item in scenarios.sentence_exercises() if item["id"] == exercise_id), None)
+    if not exercise:
+        return jsonify({"error": "Bài tập không tồn tại."}), 404
+    message = text_value(data.get("message"))
+    if not message:
+        return jsonify({"error": "Bạn chưa viết câu trả lời."}), 400
+    result = review_sentence_exercise(message, exercise, bool(data.get("english_only", False)))
+    return jsonify(result)
 
 
 @app.route("/api/start", methods=["POST"])
