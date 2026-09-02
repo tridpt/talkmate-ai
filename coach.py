@@ -89,6 +89,10 @@ def _has_blocked_language(text: str) -> bool:
     return bool(_ascii_tokens(text) & {word for word in BLOCKED_WORDS if word.isascii()})
 
 
+def _contains_profanity(text: str) -> bool:
+    return bool(_ascii_tokens(text) & {word for word in BLOCKED_WORDS if word.isascii()})
+
+
 def _topic_terms(scenario: dict) -> set[str]:
     source_text = " ".join(
         [
@@ -107,8 +111,6 @@ def _topic_terms(scenario: dict) -> set[str]:
 def _looks_like_keyword_soup(scenario: dict, user_message: str) -> bool:
     """Catch topic words pasted in a list instead of a usable sentence."""
     words = re.findall(r"[a-z]+(?:[-'][a-z]+)*", (user_message or "").lower())
-    if len(words) >= 4 and _has_repeated_chunks(words):
-        return True
     if len(words) < 5:
         return False
     topic_terms = _topic_terms(scenario)
@@ -139,27 +141,36 @@ def _has_repeated_chunks(words: list[str]) -> bool:
 
 
 def _is_on_topic(scenario: dict, user_message: str, history: list[dict] | None = None) -> bool:
-    """Reject answers with no meaningful connection to the active role-play scene."""
+    return _guard_reason(scenario, user_message, history) is None
+
+
+def _guard_reason(scenario: dict, user_message: str, history: list[dict] | None = None) -> str | None:
+    """Return a stable reason when a reply should not be scored."""
     tokens = _tokens(user_message)
-    if not tokens or _has_blocked_language(user_message):
-        return False
+    if not tokens:
+        return "incomplete"
+    if _has_blocked_language(user_message):
+        return "profanity" if _contains_profanity(user_message) else "language"
 
     topic_terms = _topic_terms(scenario)
+    words = re.findall(r"[a-z]+(?:[-'][a-z]+)*", (user_message or "").lower())
+    if len(words) >= 4 and _has_repeated_chunks(words):
+        return "repeated"
 
     short_phrase = " ".join(re.findall(r"[a-z]+(?:'[a-z]+)?", user_message.lower()))
     if short_phrase in SHORT_VALID_REPLIES:
-        return short_phrase in UNIVERSAL_SHORT_REPLIES or scenario.get("icon") == "cup"
+        return None if short_phrase in UNIVERSAL_SHORT_REPLIES or scenario.get("icon") == "cup" else "off_topic"
     # A short acknowledgement can naturally fit any scene ("sure", "no thanks").
     if tokens <= COMMON_CONVERSATION_WORDS:
-        return True
+        return None
     # A lone topic keyword ("reservation", "symptoms", "receipt") is not a
     # sentence and should not earn a grammar or conversation score. Keep only
     # a few genuinely useful two-word replies for role-play flow.
     if len(tokens) <= 2:
-        return False
+        return "incomplete"
     if _looks_like_keyword_soup(scenario, user_message):
-        return False
-    return bool(tokens & topic_terms)
+        return "keyword_soup"
+    return None if tokens & topic_terms else "off_topic"
 
 # These phrases are common points of friction for Vietnamese English learners.
 PRONUNCIATION_PATTERNS = [
@@ -210,11 +221,11 @@ Feedback rules:
 - `improved` must be a natural English rewrite of the learner's exact meaning, or an empty string if it is already excellent.
   - `feedback` and `tip` must be short {feedback_language} sentences. `tip` teaches one reusable English phrase.
   - Score relevance, grammar, word_choice, sentence, naturalness, clarity, and confidence from 0 to 10.
-  - If the learner's message is unrelated to this situation, set `off_topic` and `scored` to true/false respectively, set `done` to false, leave `improved` empty, and ask them to answer the scenario again. Do not award a score for an off-topic message.
+  - If the learner's message is invalid for this practice, set `off_topic` and `scored` to true/false respectively, set `guard_reason` to one of `off_topic`, `incomplete`, `repeated`, `keyword_soup`, `profanity`, or `language`, leave `improved` empty, and ask them to try again. Do not award a score.
 - Set done true after 4-7 learner turns when the scenario has a satisfying close.
 
 Return valid JSON only:
-{{"reply":"...", "feedback":"...", "improved":"...", "tip":"...", "grammar_note":"...", "word_choice_note":"...", "sentence_pattern":"...", "scores":{{"relevance":0,"grammar":0,"word_choice":0,"sentence":0,"naturalness":0,"clarity":0,"confidence":0}}, "scored":true, "off_topic":false, "done":false}}"""
+{{"reply":"...", "feedback":"...", "improved":"...", "tip":"...", "grammar_note":"...", "word_choice_note":"...", "sentence_pattern":"...", "scores":{{"relevance":0,"grammar":0,"word_choice":0,"sentence":0,"naturalness":0,"clarity":0,"confidence":0}}, "scored":true, "off_topic":false, "guard_reason":null, "done":false}}"""
 
 
 def _build_contents(history: list[dict], user_message: str):
@@ -253,8 +264,9 @@ class Coach:
         learner = _normalize_learner(learner)
         # Guard the request before calling the model so an off-topic answer can
         # never receive a score, even when the model is online.
-        if not _is_on_topic(scenario, user_message, history):
-            return self._off_topic_response(scenario, english_only, mode="guard")
+        guard_reason = _guard_reason(scenario, user_message, history)
+        if guard_reason:
+            return self._off_topic_response(scenario, english_only, reason=guard_reason, mode="guard")
         if self.online:
             try:
                 return self._respond_ai(level, scenario, difficulty, history, user_message, learner, english_only)
@@ -262,19 +274,46 @@ class Coach:
                 print(f"[WARN] Gemini request failed; using offline mode: {exc}")
         return self._respond_offline(scenario, history, user_message, learner, english_only)
 
-    def _off_topic_response(self, scenario, english_only, mode="offline"):
+    def _off_topic_response(self, scenario, english_only, reason="off_topic", mode="offline"):
         language = "English" if english_only else "Vietnamese"
+        messages = {
+            "off_topic": (
+                "That answer does not match this situation yet, so I will not score it.",
+                "Mình chưa chấm điểm vì câu trả lời chưa đúng tình huống.",
+            ),
+            "incomplete": (
+                "That is not a complete sentence yet, so I will not score it.",
+                "Mình chưa chấm điểm vì câu này chưa phải một câu hoàn chỉnh.",
+            ),
+            "repeated": (
+                "The same word or phrase is repeated too much, so I will not score it.",
+                "Mình chưa chấm điểm vì bạn đang lặp lại từ hoặc cụm từ quá nhiều.",
+            ),
+            "keyword_soup": (
+                "These words fit the scene, but they are not arranged as a clear sentence, so I will not score it.",
+                "Các từ có liên quan nhưng chưa được sắp xếp thành câu rõ ràng nên mình chưa chấm điểm.",
+            ),
+            "profanity": (
+                "Please keep the practice respectful; I will not score that reply.",
+                "Hãy giữ nội dung luyện tập lịch sự; mình chưa chấm điểm câu này.",
+            ),
+            "language": (
+                "Please answer in English for this scene; I will not score this reply.",
+                "Hãy trả lời bằng tiếng Anh trong tình huống này; mình chưa chấm điểm câu này.",
+            ),
+        }
+        english_message, vietnamese_message = messages.get(reason, messages["off_topic"])
         if language == "English":
-            feedback = "That answer does not match this situation yet, so I will not score it."
-            reply = "Let's stay with this scene. Please answer using the situation details, then try again."
+            feedback = english_message
+            reply = "Let's stay with this scene. Please try one complete English sentence using the situation details."
             tip = f"Try: \u201c{scenario['starter']}\u201d"
-            grammar_note = "We will check grammar after your answer is on topic."
+            grammar_note = "We will check grammar after your answer is clear and on topic."
             word_choice_note = "Use words connected to this situation."
         else:
-            feedback = "Câu trả lời chưa đúng tình huống nên mình chưa chấm điểm."
-            reply = "Mình tiếp tục tình huống này nhé. Hãy trả lời dựa trên bối cảnh rồi thử lại."
+            feedback = vietnamese_message
+            reply = "Mình tiếp tục tình huống này nhé. Hãy thử một câu tiếng Anh hoàn chỉnh dựa trên bối cảnh."
             tip = f"Bạn có thể bắt đầu: \u201c{scenario['starter']}\u201d"
-            grammar_note = "Khi câu trả lời đúng chủ đề, mình sẽ kiểm tra ngữ pháp."
+            grammar_note = "Khi câu trả lời rõ ràng và đúng chủ đề, mình sẽ kiểm tra ngữ pháp."
             word_choice_note = "Hãy dùng từ liên quan đến tình huống này."
         return _normalize(
             {
@@ -288,6 +327,7 @@ class Coach:
                 "scores": {},
                 "scored": False,
                 "off_topic": True,
+                "guard_reason": reason,
                 "done": False,
             },
             mode=mode,
@@ -308,8 +348,9 @@ class Coach:
         return _normalize(_parse_json(getattr(response, "text", "") or ""), mode="ai")
 
     def _respond_offline(self, scenario, history, user_message, learner, english_only):
-        if not _is_on_topic(scenario, user_message, history):
-            return self._off_topic_response(scenario, english_only, mode="offline")
+        guard_reason = _guard_reason(scenario, user_message, history)
+        if guard_reason:
+            return self._off_topic_response(scenario, english_only, reason=guard_reason, mode="offline")
         user_turns = sum(turn.get("role") == "user" for turn in history)
         replies = scenario.get("offline_replies", [])
         done = user_turns >= len(replies)
@@ -359,6 +400,7 @@ def _normalize(data: dict, mode: str) -> dict:
     raw_scores = data.get("scores") or {}
     scored = bool(data.get("scored", True)) and not bool(data.get("off_topic", False))
     scores = {key: _clamp_score(raw_scores.get(key, 5)) for key in SCORE_KEYS} if scored else {}
+    guard_reason = str(data.get("guard_reason") or "").strip() or ("off_topic" if not scored and data.get("off_topic") else None)
     return {
         "reply": str(data.get("reply") or "...").strip(),
         "feedback": str(data.get("feedback") or "").strip(),
@@ -371,6 +413,7 @@ def _normalize(data: dict, mode: str) -> dict:
         "overall": round(sum(scores.values()) / len(scores), 1) if scores else None,
         "scored": scored,
         "off_topic": bool(data.get("off_topic", False)),
+        "guard_reason": guard_reason,
         "done": bool(data.get("done", False)),
         "mode": mode,
     }
@@ -436,11 +479,35 @@ def pronunciation_check(transcript: str, confidence: float | None = None) -> dic
     }
 
 
+OFFLINE_SUBJECT_WORDS = {"i", "you", "we", "he", "she", "they", "it", "there"}
+OFFLINE_VERB_WORDS = {
+    "am", "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did",
+    "can", "could", "will", "would", "should", "must", "need", "want", "like", "love", "feel", "go",
+    "get", "order", "ask", "tell", "confirm", "change", "book", "reserve", "recommend", "suggest",
+    "propose", "visit", "work", "explain", "make", "take", "know", "think", "call", "live", "move", "drink", "choose",
+}
+
+
+def _offline_sentence_metrics(text: str) -> dict:
+    """Estimate basic parts of a sentence without downloading a language model."""
+    tokens = re.findall(r"[a-z]+(?:[-'][a-z]+)*", (text or "").lower())
+    plain_tokens = {token.replace("-", "") for token in tokens}
+    return {
+        "words": len(tokens),
+        "has_subject": bool(plain_tokens & OFFLINE_SUBJECT_WORDS),
+        "has_verb": bool(plain_tokens & OFFLINE_VERB_WORDS),
+        "has_linker": bool(plain_tokens & SENTENCE_LINKING_WORDS),
+        "has_terminal": bool(re.search(r"[?.!]$", (text or "").strip())),
+        "is_question": bool(re.search(r"[?]$", (text or "").strip())),
+    }
+
+
 def _review_offline(message: str, scenario: dict, learner: dict, english_only: bool):
     """Give a focused local correction so the app stays useful without an API key."""
     text = message.strip()
     lower = text.lower()
-    words = len(re.findall(r"\b[\w']+\b", text))
+    metrics = _offline_sentence_metrics(text)
+    words = metrics["words"]
     scores = {
         "relevance": 10,
         "grammar": 8,
@@ -458,6 +525,25 @@ def _review_offline(message: str, scenario: dict, learner: dict, english_only: b
     sentence_pattern = scenario.get("starter", "")
 
     fixes = [
+        (r"\b(can|could|should|must|will)\s+to\s+([a-z]+)", r"\1 \2", "grammar", "After a modal verb, use the base verb without 'to'." if english_only else "Sau động từ khuyết thiếu dùng động từ nguyên mẫu, không thêm ‘to’.", "Can / Could / Should + base verb ..."),
+        (r"\b(he|she|it)\s+have\b", r"\1 has", "grammar", "Use 'has' with he, she, and it." if english_only else "Với he, she, it dùng ‘has’, không dùng ‘have’.", "He / She / It has + noun."),
+        (r"\b(i|you|we|they)\s+has\b", r"\1 have", "grammar", "Use 'have' with I, you, we, and they." if english_only else "Với I, you, we, they dùng ‘have’, không dùng ‘has’.", "I / You / We / They have + noun."),
+        (r"\ba\s+(hour|honest|honor|heir|herb)\b", r"an \1", "grammar", "Use 'an' before a silent-h word." if english_only else "Dùng ‘an’ trước một số từ có âm h câm.", "an hour / an honest answer."),
+        (r"\ban\s+(university|user|usual|european|one|once)\b", r"a \1", "grammar", "Use 'a' before a consonant sound, even when the word starts with a vowel letter." if english_only else "Dùng ‘a’ trước âm phụ âm dù từ bắt đầu bằng nguyên âm.", "a university / a useful idea."),
+        (r"\ba\s+([aeiou][a-z]+)\b", r"an \1", "grammar", "Use 'an' before a vowel sound." if english_only else "Dùng ‘an’ trước âm nguyên âm.", "an + vowel sound."),
+        (r"\ban\s+([bcdfghjklmnpqrstvwxyz][a-z]+)\b", r"a \1", "grammar", "Use 'a' before a consonant sound." if english_only else "Dùng ‘a’ trước âm phụ âm.", "a + consonant sound."),
+        (r"\binterested on\b", "interested in", "grammar", "The correct preposition is 'in' after 'interested'." if english_only else "Sau ‘interested’ dùng giới từ ‘in’.", "be interested in + noun / verb-ing."),
+        (r"\bgood in\b", "good at", "grammar", "Use 'good at' for a skill." if english_only else "Nói về kỹ năng dùng ‘good at’.", "be good at + noun / verb-ing."),
+        (r"\barrive to\b", "arrive at", "grammar", "Use 'arrive at' for a specific place." if english_only else "Dùng ‘arrive at’ với địa điểm cụ thể.", "arrive at + place."),
+        (r"\bmarried with\b", "married to", "grammar", "The usual phrase is 'married to'." if english_only else "Cụm tự nhiên là ‘married to’.", "be married to + person."),
+        (r"\blisten\s+(music|the radio|this)", r"listen to \1", "grammar", "Use 'listen to' before the thing you hear." if english_only else "Dùng ‘listen to’ trước thứ bạn nghe.", "listen to + noun."),
+        (r"\b(how)\s+much\s+people\b", lambda match: f"{match.group(1)} many people", "grammar", "Use 'many' with countable people." if english_only else "Dùng ‘how many’ với danh từ đếm được như people.", "How many + plural noun ...?"),
+        (r"\badvices\b", "advice", "grammar", "'Advice' is uncountable and has no plural -s." if english_only else "‘Advice’ là danh từ không đếm được, không thêm -s.", "some advice / a piece of advice."),
+        (r"\bpeoples\b", "people", "grammar", "Use 'people' as the plural of person." if english_only else "Dạng số nhiều của person là ‘people’.", "many people."),
+        (r"\bchildrens\b", "children", "grammar", "The plural of 'child' is 'children'." if english_only else "Số nhiều của ‘child’ là ‘children’.", "children + verb."),
+        (r"\bcriterias\b", "criteria", "grammar", "The plural of 'criterion' is 'criteria'." if english_only else "Số nhiều của ‘criterion’ là ‘criteria’.", "the criteria are ..."),
+        (r"^\s*(what|where|when|why|how)\s+you\s+(are|is|do|does|did|can|could|will|would)\b", lambda match: f"{match.group(1)} {match.group(2)} you", "grammar", "In a direct question, put the helping verb before 'you'." if english_only else "Trong câu hỏi trực tiếp, đưa trợ động từ lên trước ‘you’.", "What / Where / Why + auxiliary + subject ...?"),
+        (r"\b(i need|i want|i have)\s+(?!(?:a|an)\s+)(reservation|ticket|room|table|meeting|appointment|interview|hotel|station|doctor|symptom|question|recommendation|project|plan|solution|problem|job|apartment|deposit|lease|dish)\b", lambda match: f"{match.group(1)} {('an' if match.group(2)[0].lower() in 'aeiou' else 'a')} {match.group(2)}", "grammar", "Use an article before this singular countable noun." if english_only else "Cần dùng mạo từ trước danh từ đếm được số ít này.", "I need a / an + singular noun."),
         (r"\bi want\b", "I'd like", "word", "'I want' is grammatically correct, but 'I'd like' is more polite here." if english_only else "‘I want’ đúng ngữ pháp nhưng khá trực tiếp; dùng ‘I’d like’ lịch sự hơn trong tình huống này.", "Use I'd like + noun / to + verb."),
         (r"\bi am agree\b", "I agree", "grammar", "Say 'I agree' - no 'am' is needed." if english_only else "Sau ‘I’ không cần dùng ‘am’ trước ‘agree’.", "I + agree / disagree + with + person."),
         (r"\bi very like\b", "I really like", "word", "Use 'really' before the verb, not 'very'." if english_only else "Dùng ‘really’ trước động từ sẽ tự nhiên hơn ‘very’.", "I really like + noun / verb-ing."),
@@ -496,6 +582,21 @@ def _review_offline(message: str, scenario: dict, learner: dict, english_only: b
             scores["sentence"] = 4
             tip = "Add one detail or a question: “Could you tell me more?”" if english_only else "Thêm một chi tiết hoặc một câu hỏi: “Could you tell me more?”"
             sentence_pattern = "Add one detail + one follow-up question."
+        elif not metrics["has_verb"]:
+            feedback = "I can see the topic, but this needs a verb to become a complete sentence." if english_only else "Mình thấy đúng chủ đề, nhưng câu cần có động từ để hoàn chỉnh."
+            scores["grammar"] = 5
+            scores["sentence"] = 4
+            scores["clarity"] = 5
+            grammar_note = "Add a clear verb after the subject." if english_only else "Thêm một động từ rõ ràng sau chủ ngữ."
+            sentence_pattern = "Subject + verb + detail."
+            tip = "Try: “I would like ...”" if english_only else "Thử nói: “I would like ...”"
+        elif not metrics["has_subject"] and not re.match(r"\s*(please\s+)?(?:can|could|would|should|tell|ask|confirm|order|recommend|suggest|propose|explain|change|book)\b", lower):
+            feedback = "Your words are related, but add a subject so the sentence is easier to follow." if english_only else "Các từ đúng chủ đề, nhưng nên thêm chủ ngữ để câu dễ hiểu hơn."
+            scores["grammar"] = 6
+            scores["sentence"] = 5
+            scores["clarity"] = 5
+            grammar_note = "Use a subject + verb structure." if english_only else "Dùng cấu trúc chủ ngữ + động từ."
+            sentence_pattern = "Subject + verb + detail."
         elif not re.search(r"[?.!]$", text):
             feedback = "Your sentence is clear. Let your voice fall at the end so it sounds complete." if english_only else "Câu của bạn dễ hiểu. Khi nói, hãy hạ giọng ở cuối câu để nghe trọn ý hơn."
             scores["sentence"] = 6

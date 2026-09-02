@@ -38,6 +38,7 @@ class CoachScoringGuardTests(unittest.TestCase):
                 data = self.reply(level, index, message)
                 self.assertTrue(data["scored"])
                 self.assertFalse(data["off_topic"])
+                self.assertIsNone(data["guard_reason"])
                 self.assertEqual(set(data["scores"]), {"relevance", "clarity", "grammar", "word_choice", "sentence", "naturalness", "confidence"})
 
     def test_relevant_grammar_error_is_scored_for_correction(self):
@@ -55,24 +56,52 @@ class CoachScoringGuardTests(unittest.TestCase):
         self.assertLess(direct["scores"]["naturalness"], polite["scores"]["naturalness"])
         self.assertEqual(direct["scores"]["relevance"], polite["scores"]["relevance"])
 
+    def test_common_grammar_patterns_get_deterministic_rewrites(self):
+        cases = [
+            ("everyday", 3, "I need reservation, please.", "I need a reservation, please."),
+            ("everyday", 4, "I need appointment with the doctor.", "I need an appointment with the doctor."),
+            ("everyday", 3, "She have a reservation.", "She has a reservation."),
+            ("everyday", 5, "I am interested on this apartment.", "I am interested in this apartment."),
+            ("everyday", 0, "I can to order coffee.", "I can order coffee."),
+            ("everyday", 0, "I want a iced latte, please.", "I want an iced latte, please."),
+            ("everyday", 5, "What you are looking for in this apartment?", "What are you looking for in this apartment?"),
+            ("work", 1, "How much people are attending the meeting?", "How many people are attending the meeting?"),
+            ("work", 1, "I discuss about the launch plan.", "I discuss the launch plan."),
+            ("work", 3, "I need advices about the project.", "I need advice about the project."),
+        ]
+        for level, index, message, expected in cases:
+            with self.subTest(message=message):
+                data = self.reply(level, index, message)
+                self.assertTrue(data["scored"])
+                self.assertEqual(data["improved"], expected)
+                self.assertEqual(data["scores"]["grammar"], 5)
+
+    def test_correct_articles_are_not_flagged_again(self):
+        data = self.reply("everyday", 3, "I need a reservation, please.")
+
+        self.assertTrue(data["scored"])
+        self.assertEqual(data["improved"], "")
+        self.assertGreaterEqual(data["scores"]["grammar"], 8)
+
     def test_invalid_replies_receive_no_score(self):
         vietnamese_profanity = chr(273) + chr(7883) + "t symptoms"
         cases = [
-            ("everyday", 0, "I love quantum physics"),
-            ("everyday", 4, vietnamese_profanity),
-            ("everyday", 3, "could you confirm check-in date available reservation"),
-            ("everyday", 0, "receipt still or sparkling still or sparkling for here for here"),
-            ("everyday", 0, "to go to go to go to go to go"),
-            ("everyday", 3, "reservation"),
-            ("everyday", 3, "to go"),
+            ("everyday", 0, "I love quantum physics", "off_topic"),
+            ("everyday", 4, vietnamese_profanity, "profanity"),
+            ("everyday", 3, "could you confirm check-in date available reservation", "keyword_soup"),
+            ("everyday", 0, "receipt still or sparkling still or sparkling for here for here", "repeated"),
+            ("everyday", 0, "to go to go to go to go to go", "repeated"),
+            ("everyday", 3, "reservation", "incomplete"),
+            ("everyday", 3, "to go", "off_topic"),
         ]
-        for level, index, message in cases:
+        for level, index, message, reason in cases:
             with self.subTest(level=level, index=index, message=message):
                 data = self.reply(level, index, message)
                 self.assertFalse(data["scored"])
                 self.assertTrue(data["off_topic"])
                 self.assertIsNone(data["overall"])
                 self.assertEqual(data["scores"], {})
+                self.assertEqual(data["guard_reason"], reason)
                 self.assertFalse(data["done"])
 
     def test_short_contextual_replies_are_allowed_only_when_relevant(self):
@@ -109,6 +138,7 @@ class ReplyApiScoringTests(unittest.TestCase):
         data = response.get_json()
         self.assertFalse(data["scored"])
         self.assertTrue(data["off_topic"])
+        self.assertEqual(data["guard_reason"], "repeated")
         self.assertIsNone(data["overall"])
         self.assertEqual(data["scores"], {})
 
@@ -127,6 +157,7 @@ class ReplyApiScoringTests(unittest.TestCase):
         data = response.get_json()
         self.assertTrue(data["scored"])
         self.assertFalse(data["off_topic"])
+        self.assertIsNone(data["guard_reason"])
         self.assertIsInstance(data["overall"], float)
         self.assertEqual(len(data["scores"]), 7)
 

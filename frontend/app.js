@@ -54,6 +54,14 @@ const scoreHints = {
   clarity: "Is the meaning easy to understand?",
   confidence: "Does the answer sound ready to use?",
 };
+const guardReasonLabels = {
+  off_topic: "OFF TOPIC - does not match this scene",
+  incomplete: "INCOMPLETE - write one complete sentence",
+  repeated: "REPEATED - remove repeated words or phrases",
+  keyword_soup: "KEYWORD SOUP - arrange the words into a sentence",
+  profanity: "PROFANITY - keep practice respectful",
+  language: "LANGUAGE - answer in English for this scene",
+};
 const badges = [
   { id: "first_scene", name: "FIRST HELLO", hint: "Complete one conversation." },
   { id: "five_minutes", name: "FIVE MINUTES", hint: "Speak for five minutes in one day." },
@@ -89,6 +97,7 @@ const els = {
   send: $("#btn-send"),
   coachBox: $("#coach-box"),
   feedback: $("#feedback"),
+  guardReason: $("#guard-reason"),
   grammarNote: $("#grammar-note"),
   wordChoiceNote: $("#word-choice-note"),
   sentencePattern: $("#sentence-pattern"),
@@ -780,6 +789,9 @@ function updateTurnCounter() {
 function renderCoaching(data) {
   els.coachBox.classList.remove("hidden");
   els.feedback.textContent = data.feedback;
+  const reason = data.scored === false ? guardReasonLabels[data.guard_reason] || "NO SCORE - try one clear sentence" : "";
+  els.guardReason.textContent = reason;
+  els.guardReason.classList.toggle("hidden", !reason);
   els.grammarNote.textContent = data.grammar_note || "No grammar issue to fix in this sentence.";
   els.wordChoiceNote.textContent = data.word_choice_note || "Your word choice works for this situation.";
   els.sentencePattern.textContent = data.sentence_pattern || data.improved || state.scenario?.starter || "";
