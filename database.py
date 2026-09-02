@@ -15,6 +15,7 @@ MAX_COMPLETED = 100
 MAX_ACTIVE_DAYS = 365
 MAX_SCORE_EVENTS = 30
 MAX_REVIEW_ITEMS = 20
+MAX_REVIEW_DAYS = 365
 MAX_XP_EVENTS = 500
 MAX_CHALLENGE_EVENTS = 100_000
 
@@ -161,15 +162,46 @@ def normalize_progress(payload):
         if any((entry["source"].lower(), entry["correction"].lower()) == key for entry in review_items):
             continue
         review_items.append({
+            "id": str(item.get("id") or f"legacy-review-{len(review_items)}")[:100],
             "source": source,
             "correction": correction,
             "note": str(item.get("note") or "")[:600],
             "tag": str(item.get("tag") or "PERSONAL FIX")[:60],
+            "category": str(item.get("category") or "word_choice")[:40],
+            "exercise": str(item.get("exercise") or "Rewrite this sentence in natural English.")[:300],
             "level": str(item.get("level") or "A2")[:10],
             "target": str(item.get("target") or "practice")[:50],
+            "attempts": max(0, min(10_000, int(item.get("attempts") or 0))) if str(item.get("attempts") or "0").lstrip("-").isdigit() else 0,
+            "correct": max(0, min(10_000, int(item.get("correct") or 0))) if str(item.get("correct") or "0").lstrip("-").isdigit() else 0,
+            "lastReviewedDay": str(item.get("lastReviewedDay") or "")[:20],
+            "createdAt": str(item.get("createdAt") or "")[:40],
         })
         if len(review_items) >= MAX_REVIEW_ITEMS:
             break
+
+    raw_review = payload.get("review") if isinstance(payload.get("review"), dict) else {}
+    review_daily = {}
+    if isinstance(raw_review.get("dailyCompleted"), dict):
+        for day, count in raw_review["dailyCompleted"].items():
+            if not isinstance(day, str) or not re.fullmatch(r"\d{4}-\d{1,2}-\d{1,2}", day):
+                continue
+            try:
+                review_daily[day] = max(0, min(5, int(count)))
+            except (TypeError, ValueError):
+                continue
+            if len(review_daily) >= MAX_REVIEW_DAYS:
+                break
+    def bounded_review_count(name):
+        try:
+            return max(0, min(1_000_000, int(raw_review.get(name) or 0)))
+        except (TypeError, ValueError):
+            return 0
+    review = {
+        "dailyCompleted": review_daily,
+        "sessions": bounded_review_count("sessions"),
+        "attempts": bounded_review_count("attempts"),
+        "correct": bounded_review_count("correct"),
+    }
 
     return {
         "completed": completed,
@@ -180,6 +212,7 @@ def normalize_progress(payload):
         "profile": profile,
         "profile_updated_at": str(payload.get("profile_updated_at") or "")[:40],
         "reviewItems": review_items,
+        "review": review,
     }
 
 
@@ -249,13 +282,33 @@ def merge_progress(existing, incoming):
     merged["profile_updated_at"] = selected_profile["profile_updated_at"]
 
     merged_reviews = []
-    seen_reviews = set()
+    review_lookup = {}
     for item in [*existing["reviewItems"], *incoming["reviewItems"]]:
         key = (item["source"].lower(), item["correction"].lower())
-        if key not in seen_reviews:
-            merged_reviews.append(item)
-            seen_reviews.add(key)
+        previous = review_lookup.get(key)
+        if previous is None:
+            review_lookup[key] = dict(item)
+            merged_reviews.append(review_lookup[key])
+            continue
+        previous["attempts"] = max(previous["attempts"], item["attempts"])
+        previous["correct"] = max(previous["correct"], item["correct"])
+        if item.get("lastReviewedDay") > previous.get("lastReviewedDay", ""):
+            previous["lastReviewedDay"] = item["lastReviewedDay"]
+        for field in ("id", "note", "tag", "category", "exercise", "level", "target", "createdAt"):
+            if not previous.get(field) and item.get(field):
+                previous[field] = item[field]
     merged["reviewItems"] = merged_reviews[-MAX_REVIEW_ITEMS:]
+    base_review = existing["review"]
+    incoming_review = incoming["review"]
+    review_daily = dict(base_review["dailyCompleted"])
+    for day, count in incoming_review["dailyCompleted"].items():
+        review_daily[day] = max(review_daily.get(day, 0), count)
+    merged["review"] = {
+        "dailyCompleted": dict(list(review_daily.items())[-MAX_REVIEW_DAYS:]),
+        "sessions": max(base_review["sessions"], incoming_review["sessions"]),
+        "attempts": max(base_review["attempts"], incoming_review["attempts"]),
+        "correct": max(base_review["correct"], incoming_review["correct"]),
+    }
     return merged
 
 

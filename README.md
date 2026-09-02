@@ -44,7 +44,8 @@ GEMINI_MODEL=gemini-2.5-flash
 - Speech clarity check after a microphone reply, including words to rehearse and slow/normal playback.
 - Local progress, daily streak, completed scenes, and average score.
 - Personal learning path: A1-C1 level plus travel, interview, work, or dating goal.
-- Review Studio automatically creates small rewrite exercises from corrected learner sentences.
+- Personal Error Notebook groups corrected sentences into articles, prepositions, verb forms,
+  word order, and word choice, then creates five quick rewrite drills per day.
 - Daily five-minute mission, XP, levels, streak, and unlockable badges.
 - A 60-second Brave Mode speaking challenge with live transcript where browser speech recognition is available.
 - Practical scenes include phone calls, doctor visits, apartment rental, restaurant ordering, presentations, and meeting international travelers.

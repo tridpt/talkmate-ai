@@ -96,11 +96,16 @@
       <section class="weekly-section"><div class="review-heading"><div><p class="eyebrow">YOUR WEEK IN MOTION</p><h2>Seven days of showing up.</h2></div><span id="sync-status" class="lesson-count">Local progress</span></div><div id="weekly-chart" class="weekly-chart"></div><p id="weekly-caption" class="weekly-caption">Sign in to sync this chart across devices.</p></section>
       <section class="history-section"><div class="review-heading"><div><p class="eyebrow">PAST CONVERSATIONS</p><h2>Pick up what you practiced.</h2></div><span id="history-count" class="lesson-count">Sign in to save sessions</span></div><div id="session-history" class="session-history"><p id="history-empty" class="review-empty">Sign in and complete a scene to keep your conversation history here.</p></div></section>
       <section id="review-lab" class="review-lab">
-        <div class="review-heading"><div><p class="eyebrow">REVIEW STUDIO</p><h2>Turn your slips into strong sentences.</h2></div><span id="review-count" class="lesson-count">0 saved corrections</span></div>
+        <div class="review-heading"><div><p class="eyebrow">PERSONAL ERROR NOTEBOOK</p><h2>Turn your slips into strong sentences.</h2></div><span id="review-count" class="lesson-count">0 saved corrections</span></div>
+        <div class="review-dashboard">
+          <article class="review-daily-card"><div><p class="eyebrow">TODAY'S 5-MINUTE REVIEW</p><h3>Five tiny drills. One stronger voice.</h3><p id="review-daily-progress">0 / 5 quick drills completed today</p></div><div class="review-daily-track"><span id="review-daily-bar"></span></div></article>
+          <div id="review-categories" class="review-categories" aria-label="Error categories"></div>
+        </div>
         <div id="review-empty" class="review-empty"><span>*</span><p>Complete a conversation and TalkMate will turn your corrected sentences into tiny review exercises here.</p></div>
         <div id="review-card" class="review-card hidden">
           <div class="review-card-top"><span id="review-tag" class="review-tag">NATURAL PHRASING</span><span id="review-mode" class="review-mode">Your practice</span></div>
           <p id="review-instruction" class="review-instruction">Make this sound natural in English.</p>
+          <span class="review-source-label">YOUR ORIGINAL</span>
           <blockquote id="review-source"></blockquote>
           <label class="sr-only" for="review-input">Your improved sentence</label><textarea id="review-input" rows="2" placeholder="Write your improved version..."></textarea>
           <div class="review-actions"><button id="btn-check-review" class="voice-button active">Compare with model answer</button><button id="btn-new-review" class="voice-button">New exercise</button></div>

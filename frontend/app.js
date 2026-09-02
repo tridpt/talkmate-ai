@@ -11,6 +11,8 @@ const state = {
   englishOnly: false,
   pronunciationSample: "",
   reviewIndex: 0,
+  reviewFilter: "all",
+  reviewCurrentId: null,
   challengePromptIndex: 0,
   challengeSeconds: 60,
   challengeInterval: null,
@@ -61,6 +63,20 @@ const guardReasonLabels = {
   keyword_soup: "KEYWORD SOUP - arrange the words into a sentence",
   profanity: "PROFANITY - keep practice respectful",
   language: "LANGUAGE - answer in English for this scene",
+};
+const reviewCategoryMeta = {
+  articles: { label: "ARTICLES", name: "Mạo từ", hint: "a / an / the" },
+  prepositions: { label: "PREPOSITIONS", name: "Giới từ", hint: "in / on / at / to" },
+  verb_forms: { label: "VERB FORMS", name: "Chia động từ", hint: "have / has / did / can" },
+  word_order: { label: "WORD ORDER", name: "Trật tự câu", hint: "question and sentence structure" },
+  word_choice: { label: "WORD CHOICE", name: "Cách dùng từ", hint: "natural phrases" },
+};
+const reviewExercisePrompts = {
+  articles: "Add the correct article before the singular noun.",
+  prepositions: "Choose the preposition that makes the phrase natural.",
+  verb_forms: "Fix the verb form to match the subject or tense.",
+  word_order: "Put the words in a natural English order.",
+  word_choice: "Rewrite this with a more natural English phrase.",
 };
 const badges = [
   { id: "first_scene", name: "FIRST HELLO", hint: "Complete one conversation." },
@@ -131,7 +147,11 @@ const els = {
   reviewEmpty: $("#review-empty"),
   reviewCard: $("#review-card"),
   reviewCount: $("#review-count"),
+  reviewDailyProgress: $("#review-daily-progress"),
+  reviewDailyBar: $("#review-daily-bar"),
+  reviewCategories: $("#review-categories"),
   reviewTag: $("#review-tag"),
+  reviewInstruction: $("#review-instruction"),
   reviewMode: $("#review-mode"),
   reviewSource: $("#review-source"),
   reviewInput: $("#review-input"),
@@ -181,16 +201,33 @@ const els = {
 function getProgress() {
   try {
     const saved = JSON.parse(localStorage.getItem(storeKey)) || {};
+    const review = saved.review && typeof saved.review === "object" ? saved.review : {};
     return {
       ...saved,
       completed: Array.isArray(saved.completed) ? saved.completed : [],
       scores: Array.isArray(saved.scores) ? saved.scores : [],
       activeDays: Array.isArray(saved.activeDays) ? saved.activeDays : [],
       scoreEvents: Array.isArray(saved.scoreEvents) ? saved.scoreEvents : [],
+      reviewItems: Array.isArray(saved.reviewItems) ? saved.reviewItems : [],
+      review: {
+        dailyCompleted: review.dailyCompleted && typeof review.dailyCompleted === "object" ? review.dailyCompleted : {},
+        sessions: Number(review.sessions) || 0,
+        attempts: Number(review.attempts) || 0,
+        correct: Number(review.correct) || 0,
+      },
     };
   } catch {
-    return { completed: [], scores: [], activeDays: [] };
+    return { completed: [], scores: [], activeDays: [], reviewItems: [], review: { dailyCompleted: {}, sessions: 0, attempts: 0, correct: 0 } };
   }
+}
+
+function ensureReviewStats(progress) {
+  progress.review ||= { dailyCompleted: {}, sessions: 0, attempts: 0, correct: 0 };
+  progress.review.dailyCompleted ||= {};
+  progress.review.sessions = Number(progress.review.sessions) || 0;
+  progress.review.attempts = Number(progress.review.attempts) || 0;
+  progress.review.correct = Number(progress.review.correct) || 0;
+  return progress.review;
 }
 
 function saveProgress(progress) {
@@ -363,6 +400,9 @@ function difficultyForLevel(level) {
 function updateLearningMemory(message, data) {
   const lower = message.toLowerCase();
   const patterns = [];
+  if (data.improved && data.improved.trim().toLowerCase() !== lower.trim()) {
+    patterns.push(reviewCategoryFor(message, data));
+  }
   if (/\bi want\b/.test(lower)) patterns.push("polite requests");
   if (/\bi am agree\b/.test(lower)) patterns.push("verb forms after I");
   if (/\bi very like\b/.test(lower)) patterns.push("natural adverbs");
@@ -976,19 +1016,81 @@ function finishChallenge(fullMinute) {
 
 function renderReviewLab() {
   const progress = getProgress();
-  const items = progress.reviewItems || [];
+  const allItems = progress.reviewItems || [];
+  let migrated = false;
+  allItems.forEach((item, index) => {
+    if (!item.id) { item.id = `legacy-review-${index}`; migrated = true; }
+    if (!item.category) { item.category = reviewCategoryFor(item.source, { note: item.note, tag: item.tag }); migrated = true; }
+    if (!item.exercise) { item.exercise = reviewExercisePrompts[item.category] || reviewExercisePrompts.word_choice; migrated = true; }
+    if (item.attempts == null) { item.attempts = 0; migrated = true; }
+    if (item.correct == null) { item.correct = 0; migrated = true; }
+    if (!item.lastReviewedDay) { item.lastReviewedDay = ""; migrated = true; }
+  });
+  if (migrated) saveProgress(progress);
+  const items = state.reviewFilter === "all"
+    ? allItems
+    : allItems.filter((item) => (item.category || "word_choice") === state.reviewFilter);
+  const stats = ensureReviewStats(progress);
+  const today = dayStamp();
+  const completedToday = Math.min(5, Number(stats.dailyCompleted[today]) || 0);
   els.reviewCount.textContent = `${items.length} saved correction${items.length === 1 ? "" : "s"}`;
+  renderReviewProgress(progress, allItems, completedToday);
   els.reviewEmpty.classList.toggle("hidden", items.length > 0);
   els.reviewCard.classList.toggle("hidden", items.length === 0);
   if (!items.length) return;
-  const item = items[state.reviewIndex % items.length];
-  els.reviewTag.textContent = item.tag || "PERSONAL FIX";
+  const pending = items.filter((item) => item.lastReviewedDay !== today);
+  const pool = pending.length ? pending : items;
+  const item = pool[state.reviewIndex % pool.length];
+  state.reviewCurrentId = item.id || item.source;
+  const category = item.category || "word_choice";
+  els.reviewTag.textContent = reviewCategoryMeta[category]?.label || item.tag || "PERSONAL FIX";
   els.reviewMode.textContent = `${item.level || "A2"} · ${item.target || "practice"}`;
+  els.reviewInstruction.textContent = item.exercise || reviewExercisePrompts[category] || "Rewrite this sentence in natural English.";
   els.reviewSource.textContent = item.source;
   els.reviewInput.value = "";
   els.reviewAnswer.classList.add("hidden");
   els.reviewCorrection.textContent = item.correction;
   els.reviewNote.textContent = item.note || "Compare the structure, then say the model answer out loud.";
+}
+
+function renderReviewProgress(progress, items, completedToday = 0) {
+  if (els.reviewDailyProgress) {
+    els.reviewDailyProgress.textContent = completedToday >= 5
+      ? "Today's 5-minute review is complete"
+      : `${completedToday} / 5 quick drills completed today`;
+  }
+  if (els.reviewDailyBar) els.reviewDailyBar.style.width = `${completedToday * 20}%`;
+  if (!els.reviewCategories) return;
+  const counts = items.reduce((result, item) => {
+    const category = item.category || "word_choice";
+    result[category] = (result[category] || 0) + 1;
+    return result;
+  }, {});
+  els.reviewCategories.replaceChildren();
+  Object.entries(reviewCategoryMeta).forEach(([category, meta]) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = `review-category${state.reviewFilter === category ? " selected" : ""}`;
+    card.innerHTML = `<strong>${counts[category] || 0}</strong><span>${meta.name}</span><small>${meta.hint}</small>`;
+    card.addEventListener("click", () => {
+      state.reviewFilter = state.reviewFilter === category ? "all" : category;
+      renderReviewLab();
+    });
+    els.reviewCategories.append(card);
+  });
+}
+
+function reviewCategoryFor(message, data = {}) {
+  const source = `${message || ""}`.toLowerCase();
+  const text = `${data.grammar_note || ""} ${data.word_choice_note || ""} ${data.feedback || ""} ${data.note || ""} ${data.tag || ""}`.toLowerCase();
+  const articleMistake = /\ba\s+(?:hour|honest|honor|heir|herb|[aeiou][a-z]+)\b|\ban\s+(?:university|user|usual|european|one|once|[bcdfghjklmnpqrstvwxyz][a-z]+)\b/.test(source);
+  const missingArticle = /\b(?:need|want|have)\s+(?:reservation|ticket|room|table|meeting|appointment|interview|hotel|station|doctor|symptom|question|recommendation|project|plan|solution|problem|job|apartment|deposit|lease|dish)\b/.test(source);
+  if (/article|mạo từ|vowel sound|singular countable/.test(text) || articleMistake || missingArticle) return "articles";
+  if (/preposition|giới từ|interested in|good at|arrive at|depend on|listen to/.test(text)) return "prepositions";
+  if (/word order|trật tự|helping verb|auxiliary|modal|verb form|have'|has'|didn't|chia động từ/.test(text)) {
+    return /question|word order|trật tự/.test(text) ? "word_order" : "verb_forms";
+  }
+  return /word choice|polite|natural|cách dùng từ|từ bạn/.test(text) ? "word_choice" : "verb_forms";
 }
 
 function saveReviewItem(message, data) {
@@ -999,13 +1101,21 @@ function saveReviewItem(message, data) {
   const duplicate = progress.reviewItems.some((item) => item.source.toLowerCase() === message.trim().toLowerCase());
   if (!duplicate) {
     const profile = getLearnerProfile();
+    const category = reviewCategoryFor(message, data);
     progress.reviewItems.unshift({
+      id: eventId("review"),
       source: message.trim(),
       correction,
       note: data.grammar_note || data.word_choice_note || data.feedback,
-      tag: reviewTag(data),
+      tag: reviewCategoryMeta[category]?.label || reviewTag(data),
+      category,
+      exercise: reviewExercisePrompts[category],
       level: profile.proficiency,
       target: profile.target,
+      attempts: 0,
+      correct: 0,
+      lastReviewedDay: "",
+      createdAt: new Date().toISOString(),
     });
     progress.reviewItems = progress.reviewItems.slice(0, 20);
     saveProgress(progress);
@@ -1022,13 +1132,34 @@ function reviewTag(data) {
 
 function checkReviewAnswer() {
   const progress = getProgress();
-  const items = progress.reviewItems || [];
+  const allItems = progress.reviewItems || [];
+  const items = state.reviewFilter === "all"
+    ? allItems
+    : allItems.filter((item) => (item.category || "word_choice") === state.reviewFilter);
   if (!items.length) return;
-  const item = items[state.reviewIndex % items.length];
+  const today = dayStamp();
+  const pending = items.filter((item) => item.lastReviewedDay !== today);
+  const pool = pending.length ? pending : items;
+  const item = items.find((candidate) => (candidate.id || candidate.source) === state.reviewCurrentId)
+    || pool[state.reviewIndex % pool.length];
   const normalize = (value) => value.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
   const matches = normalize(els.reviewInput.value) === normalize(item.correction);
+  const stats = ensureReviewStats(progress);
+  item.attempts = (Number(item.attempts) || 0) + 1;
+  if (matches) item.correct = (Number(item.correct) || 0) + 1;
+  stats.attempts += 1;
+  if (matches) stats.correct += 1;
+  if (item.lastReviewedDay !== today) {
+    item.lastReviewedDay = today;
+    stats.dailyCompleted[today] = Math.min(5, (Number(stats.dailyCompleted[today]) || 0) + 1);
+    stats.sessions += 1;
+  }
+  saveProgress(progress);
+  renderReviewProgress(progress, items, Math.min(5, Number(stats.dailyCompleted[today]) || 0));
   els.reviewAnswer.classList.remove("hidden");
-  els.reviewNote.textContent = matches ? "Great - your rewrite matches the natural model." : "Compare the small details: word order, politeness, and the missing helper verb.";
+  els.reviewNote.textContent = matches
+    ? "Great - your rewrite matches the natural model."
+    : "Compare the small details, then try the sentence once more out loud.";
 }
 
 async function sendMessage() {
