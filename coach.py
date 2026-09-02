@@ -723,6 +723,17 @@ def _review_offline(message: str, scenario: dict, learner: dict, english_only: b
     return scores, feedback, improved, tip, grammar_note, word_choice_note, sentence_pattern
 
 
+def _exercise_topic_hits(message: str, exercise: dict) -> int:
+    """Count content terms that connect a sentence to its prompt."""
+    tokens = _tokens(message)
+    hits = 0
+    for term in exercise.get("topic_terms") or []:
+        term_tokens = _tokens(str(term))
+        if term_tokens and term_tokens <= tokens:
+            hits += 1
+    return hits
+
+
 def review_sentence_exercise(message: str, exercise: dict, english_only: bool = False) -> dict:
     """Review a free sentence against a Vietnamese context prompt offline."""
     text = (message or "").strip()
@@ -760,6 +771,22 @@ def review_sentence_exercise(message: str, exercise: dict, english_only: bool = 
                 "scored": False,
                 "off_topic": True,
                 "guard_reason": "language",
+                "done": False,
+            },
+            mode="offline",
+        )
+        result["exercise"] = public_exercise
+        return result
+    if exercise.get("topic_terms") and _exercise_topic_hits(text, exercise) == 0:
+        feedback = "This sentence is not connected to the prompt yet. Add one detail from the situation." if english_only else "Câu này chưa liên quan đến tình huống. Hãy thêm ít nhất một chi tiết đúng bối cảnh."
+        result = _normalize(
+            {
+                "reply": "Try the same idea again using the situation details.",
+                "feedback": feedback,
+                "scores": {},
+                "scored": False,
+                "off_topic": True,
+                "guard_reason": "off_topic",
                 "done": False,
             },
             mode="offline",

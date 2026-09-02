@@ -591,6 +591,7 @@ SENTENCE_EXERCISES = [
         "situation": "Nói rõ món bạn muốn và thêm một chi tiết hữu ích.",
         "focus": "Yêu cầu lịch sự",
         "hint_en": "I'd like ... , please.",
+        "topic_terms": ["coffee", "latte", "tea", "drink", "order", "cafe", "to go", "takeaway", "for here"],
     },
     {
         "id": "directions",
@@ -599,6 +600,7 @@ SENTENCE_EXERCISES = [
         "situation": "Hỏi một người địa phương bằng giọng lịch sự.",
         "focus": "Câu hỏi lịch sự",
         "hint_en": "Could you tell me ...?",
+        "topic_terms": ["station", "train", "directions", "where", "walk", "left", "right", "straight", "turn"],
     },
     {
         "id": "clarify-task",
@@ -607,6 +609,7 @@ SENTENCE_EXERCISES = [
         "situation": "Cho thấy bạn đã nghe, sau đó hỏi đúng điểm chưa rõ.",
         "focus": "Xin làm rõ",
         "hint_en": "Could you clarify ...?",
+        "topic_terms": ["clarify", "understand", "mean", "requirement", "task", "detail", "explain", "request", "next step"],
     },
     {
         "id": "decline-invitation",
@@ -615,6 +618,7 @@ SENTENCE_EXERCISES = [
         "situation": "Từ chối nhưng vẫn thể hiện thiện chí.",
         "focus": "Từ chối khéo",
         "hint_en": "I'd love to, but ...",
+        "topic_terms": ["love", "invite", "invitation", "weekend", "plans", "busy", "can't", "cannot", "join", "sorry"],
     },
     {
         "id": "share-opinion",
@@ -623,6 +627,7 @@ SENTENCE_EXERCISES = [
         "situation": "Nêu ý kiến và đưa ra một lý do cụ thể.",
         "focus": "Nêu ý kiến",
         "hint_en": "I think ... because ...",
+        "topic_terms": ["think", "opinion", "plan", "simple", "simpler", "better", "team", "time", "deadline", "suggest"],
     },
     {
         "id": "disagree-respectfully",
@@ -631,6 +636,7 @@ SENTENCE_EXERCISES = [
         "situation": "Công nhận một phần ý kiến trước khi nêu quan điểm khác.",
         "focus": "Không đồng ý lịch sự",
         "hint_en": "I see your point, but ...",
+        "topic_terms": ["point", "agree", "disagree", "proposal", "suggestion", "cost", "expensive", "price", "budget", "concern"],
     },
     {
         "id": "move-reservation",
@@ -639,6 +645,7 @@ SENTENCE_EXERCISES = [
         "situation": "Nêu lý do gọi và yêu cầu thay đổi rõ ràng.",
         "focus": "Yêu cầu trong cuộc gọi",
         "hint_en": "I'm calling about ... Could I ...?",
+        "topic_terms": ["hotel", "reservation", "booking", "check-in", "date", "friday", "change", "room", "call"],
     },
     {
         "id": "allergy-order",
@@ -647,6 +654,7 @@ SENTENCE_EXERCISES = [
         "situation": "Nói về dị ứng trước rồi đưa ra yêu cầu an toàn.",
         "focus": "Nêu vấn đề và yêu cầu",
         "hint_en": "I'm allergic to ... Could I have ... without it?",
+        "topic_terms": ["allergic", "allergy", "peanut", "peanuts", "food", "dish", "ingredients", "without", "safe", "restaurant"],
     },
     {
         "id": "introduce-yourself",
@@ -655,6 +663,7 @@ SENTENCE_EXERCISES = [
         "situation": "Nói bạn làm gì và hỏi một câu mở để tiếp tục trò chuyện.",
         "focus": "Mở đầu cuộc trò chuyện",
         "hint_en": "I'm ... What do you ...?",
+        "topic_terms": ["hello", "hi", "meet", "name", "work", "study", "student", "designer", "engineer", "from", "live"],
     },
     {
         "id": "next-step",
@@ -663,6 +672,7 @@ SENTENCE_EXERCISES = [
         "situation": "Tóm tắt hành động cụ thể và mốc thời gian.",
         "focus": "Xác nhận kế hoạch",
         "hint_en": "So, the next step is ... by ...",
+        "topic_terms": ["meeting", "next", "step", "plan", "team", "finish", "review", "friday", "tomorrow", "deadline", "confirm"],
     },
 ]
 

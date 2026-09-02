@@ -44,7 +44,7 @@ class SentenceLibraryTests(unittest.TestCase):
         response = server.app.test_client().post(
             "/api/sentence-exercise",
             json={
-                "exercise_id": "cafe-order",
+                "exercise_id": "move-reservation",
                 "message": "I want reservation",
             },
         )
@@ -54,7 +54,7 @@ class SentenceLibraryTests(unittest.TestCase):
         self.assertTrue(payload["scored"])
         self.assertEqual(payload["improved"], "I want a reservation")
         self.assertTrue(payload["saved_to_notebook"])
-        self.assertEqual(payload["exercise"]["id"], "cafe-order")
+        self.assertEqual(payload["exercise"]["id"], "move-reservation")
 
     def test_context_exercise_does_not_score_vietnamese_text(self):
         response = server.app.test_client().post(
@@ -69,6 +69,35 @@ class SentenceLibraryTests(unittest.TestCase):
         payload = response.get_json()
         self.assertFalse(payload["scored"])
         self.assertEqual(payload["guard_reason"], "language")
+
+    def test_context_exercise_rejects_unrelated_english_sentence(self):
+        response = server.app.test_client().post(
+            "/api/sentence-exercise",
+            json={
+                "exercise_id": "directions",
+                "message": "I watched a movie last night.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertFalse(payload["scored"])
+        self.assertEqual(payload["guard_reason"], "off_topic")
+        self.assertIsNone(payload["overall"])
+
+    def test_context_exercise_accepts_different_relevant_wording(self):
+        response = server.app.test_client().post(
+            "/api/sentence-exercise",
+            json={
+                "exercise_id": "directions",
+                "message": "Would you mind telling me how to walk to the train station?",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["scored"])
+        self.assertFalse(payload["off_topic"])
 
 
 if __name__ == "__main__":
