@@ -766,7 +766,7 @@ function renderCoaching(data) {
   els.wordChoiceNote.textContent = data.word_choice_note || "Your word choice works for this situation.";
   els.sentencePattern.textContent = data.sentence_pattern || data.improved || state.scenario?.starter || "";
   els.tip.textContent = data.tip;
-  els.score.textContent = `${data.overall}/10`;
+  els.score.textContent = data.scored === false ? "NO SCORE" : `${data.overall}/10`;
   els.improved.textContent = data.improved;
   els.improvedWrap.classList.toggle("hidden", !data.improved);
   els.scores.replaceChildren();
@@ -1026,6 +1026,20 @@ async function sendMessage() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Conversation unavailable");
     typing.remove();
+
+    if (data.off_topic || data.scored === false) {
+      // Keep the visible attempt for context, but do not let it advance the
+      // role-play turn count or enter learning history/progress.
+      const lastTurn = state.history[state.history.length - 1];
+      if (lastTurn?.role === "user" && lastTurn.text === message) state.history.pop();
+      state.lastPartnerReply = data.reply;
+      addMessage("partner", data.reply);
+      renderCoaching(data);
+      speak(data.reply);
+      updateTurnCounter();
+      return;
+    }
+
     state.history.push({ role: "partner", text: data.reply });
     state.lastPartnerReply = data.reply;
     addMessage("partner", data.reply);

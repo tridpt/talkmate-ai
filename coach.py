@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
+from collections import Counter
 
 import config
 import scenarios
@@ -22,6 +24,127 @@ DIFFICULTY = {
     "vua": "A natural, encouraging partner with one thoughtful follow-up at a time.",
     "kho": "A quicker, more demanding but always respectful partner who asks specific follow-ups.",
 }
+
+# Conversation relevance guard: unrelated answers should be redirected, not graded.
+TOPIC_KEYWORDS = {
+    "cup": "coffee espresso americano mocha latte cappuccino tea drink beverage water milk cream sugar hot iced order menu receipt take go cup cafe",
+    "map": "station train bus airport street road direction left right straight walk minutes corner ticket platform line downtown",
+    "home": "neighbor apartment building move moved live food restaurant shop around recommend home neighborhood elevator floor",
+    "phone": "call calling reservation booking hotel date change check in checkin available confirm name room cancel nights stay",
+    "doctor": "doctor symptom sore throat fever pain sick medicine prescription allergy swallow health cough headache appointment clinic nurse treatment",
+    "key": "apartment rent rental utilities deposit lease landlord move available room kitchen pets bathroom bedroom furnished",
+    "plate": "restaurant order dish food menu allergy allergic ingredients peanuts sauce drink meal bill waiter server vegetarian vegan spicy",
+    "globe": "travel traveler visitor city place visit local food recommend tourist transport arrive country museum beach downtown",
+    "briefcase": "interview job role work experience project strength challenge team apply career",
+    "spark": "meeting team launch plan idea suggest test timeline users results tradeoff work",
+    "handshake": "event work study project designer colleague connect linkedin field introduce",
+    "presentation": "present presentation idea problem solution impact proposal team project outline",
+}
+COMMON_CONVERSATION_WORDS = {
+    "yes", "no", "sure", "okay", "ok", "please", "thanks", "thank", "could", "can", "would",
+    "i", "we", "you", "he", "she", "they", "my", "your", "our", "the", "a", "an", "it", "is",
+    "are", "am", "was", "were", "be", "to", "for", "of", "in", "on", "at", "and", "or", "but",
+    "that", "this", "there", "here", "just", "really", "maybe", "also", "more", "less", "all", "any",
+    "anything", "else", "fine", "good", "great", "nice", "perfect", "favorite", "delicious", "interesting",
+}
+BLOCKED_WORDS = {
+    "fuck", "fucking", "motherfucker", "shit", "bullshit", "bitch", "bastard", "asshole", "dick", "cunt",
+    "dit", "dich", "djt", "dm", "dmm", "du", "lon", "loz", "cac", "cặc", "địt", "đụ", "đm", "đmm",
+}
+SENTENCE_LINKING_WORDS = {
+    "a", "an", "the", "my", "your", "our", "their", "this", "that", "for", "to", "from", "with",
+    "about", "on", "in", "at", "since", "because", "if", "when", "and", "or", "but",
+}
+SHORT_VALID_REPLIES = {"to go", "for here", "hot please", "iced please", "yes please", "no thanks", "that's all", "all good"}
+UNIVERSAL_SHORT_REPLIES = {"yes", "no", "sure", "okay", "ok", "please", "thanks", "thank", "yes please", "no thanks", "that's all", "all good"}
+
+
+def _tokens(text: str) -> set[str]:
+    """Extract simple English words for the lightweight topic guard."""
+    return set(re.findall(r"[a-z]+(?:'[a-z]+)?", (text or "").lower()))
+
+
+def _ascii_tokens(text: str) -> set[str]:
+    """Normalize accents for detecting profanity typed with Vietnamese diacritics."""
+    normalized = unicodedata.normalize("NFKD", text or "")
+    normalized = normalized.replace("đ", "d").replace("Đ", "D")
+    plain = "".join(char for char in normalized if not unicodedata.combining(char))
+    return set(re.findall(r"[a-z]+(?:'[a-z]+)?", plain.lower()))
+
+
+def _has_blocked_language(text: str) -> bool:
+    if any(char.isalpha() and not char.isascii() for char in (text or "")):
+        return True
+    return bool(_ascii_tokens(text) & {word for word in BLOCKED_WORDS if word.isascii()})
+
+
+def _topic_terms(scenario: dict) -> set[str]:
+    source_text = " ".join(
+        [
+            TOPIC_KEYWORDS.get(scenario.get("icon", ""), ""),
+            scenario.get("title", ""),
+            scenario.get("context", ""),
+            scenario.get("starter", ""),
+            " ".join(scenario.get("vocabulary") or []),
+        ]
+    )
+    # Remove conversational glue words so pronouns in a starter do not count
+    # as evidence that an arbitrary sentence belongs to the scene.
+    return _tokens(source_text) - COMMON_CONVERSATION_WORDS
+
+
+def _looks_like_keyword_soup(scenario: dict, user_message: str) -> bool:
+    """Catch topic words pasted in a list instead of a usable sentence."""
+    words = re.findall(r"[a-z]+(?:[-'][a-z]+)*", (user_message or "").lower())
+    if len(words) >= 4 and _has_repeated_chunks(words):
+        return True
+    if len(words) < 5:
+        return False
+    topic_terms = _topic_terms(scenario)
+    topic_count = sum(1 for word in words if word in topic_terms or word.replace("-", "") in topic_terms)
+    link_count = sum(1 for word in words if word in SENTENCE_LINKING_WORDS)
+    if topic_count < 4 or link_count > 1:
+        return False
+    # A polite imperative such as "Please confirm ..." can be complete even
+    # when it is short; otherwise a bare keyword list should not be scored.
+    if len(words) == 5 and "please" in words:
+        return False
+    return True
+
+
+def _has_repeated_chunks(words: list[str]) -> bool:
+    """Detect repeated words or short phrases that indicate accidental spam."""
+    if max(Counter(words).values(), default=0) >= 3:
+        return True
+    for size in (2, 3, 4):
+        chunks = [tuple(words[index:index + size]) for index in range(len(words) - size + 1)]
+        if any(count >= 2 for count in Counter(chunks).values()):
+            return True
+    return False
+
+
+def _is_on_topic(scenario: dict, user_message: str, history: list[dict] | None = None) -> bool:
+    """Reject answers with no meaningful connection to the active role-play scene."""
+    tokens = _tokens(user_message)
+    if not tokens or _has_blocked_language(user_message):
+        return False
+
+    topic_terms = _topic_terms(scenario)
+
+    short_phrase = " ".join(re.findall(r"[a-z]+(?:'[a-z]+)?", user_message.lower()))
+    if short_phrase in SHORT_VALID_REPLIES:
+        return short_phrase in UNIVERSAL_SHORT_REPLIES or scenario.get("icon") == "cup"
+    # A short acknowledgement can naturally fit any scene ("sure", "no thanks").
+    if tokens <= COMMON_CONVERSATION_WORDS:
+        return True
+    # A lone topic keyword ("reservation", "symptoms", "receipt") is not a
+    # sentence and should not earn a grammar or conversation score. Keep only
+    # a few genuinely useful two-word replies for role-play flow.
+    if len(tokens) <= 2:
+        return False
+    if _looks_like_keyword_soup(scenario, user_message):
+        return False
+    return bool(tokens & topic_terms)
 
 # These phrases are common points of friction for Vietnamese English learners.
 PRONUNCIATION_PATTERNS = [
@@ -70,12 +193,13 @@ Role-play rules:
 Feedback rules:
 - Praise what is understandable first. Correct only the one most important grammar, word choice, or politeness issue.
 - `improved` must be a natural English rewrite of the learner's exact meaning, or an empty string if it is already excellent.
-- `feedback` and `tip` must be short {feedback_language} sentences. `tip` teaches one reusable English phrase.
+  - `feedback` and `tip` must be short {feedback_language} sentences. `tip` teaches one reusable English phrase.
   - Score clarity, grammar, word_choice, sentence, naturalness, and confidence from 0 to 10.
+  - If the learner's message is unrelated to this situation, set `off_topic` and `scored` to true/false respectively, set `done` to false, leave `improved` empty, and ask them to answer the scenario again. Do not award a score for an off-topic message.
 - Set done true after 4-7 learner turns when the scenario has a satisfying close.
 
 Return valid JSON only:
-{{"reply":"...", "feedback":"...", "improved":"...", "tip":"...", "grammar_note":"...", "word_choice_note":"...", "sentence_pattern":"...", "scores":{{"clarity":0,"grammar":0,"word_choice":0,"sentence":0,"naturalness":0,"confidence":0}}, "done":false}}"""
+{{"reply":"...", "feedback":"...", "improved":"...", "tip":"...", "grammar_note":"...", "word_choice_note":"...", "sentence_pattern":"...", "scores":{{"clarity":0,"grammar":0,"word_choice":0,"sentence":0,"naturalness":0,"confidence":0}}, "scored":true, "off_topic":false, "done":false}}"""
 
 
 def _build_contents(history: list[dict], user_message: str):
@@ -112,12 +236,47 @@ class Coach:
         if not level or not scenario:
             return {"error": "Invalid level or scenario."}
         learner = _normalize_learner(learner)
+        # Guard the request before calling the model so an off-topic answer can
+        # never receive a score, even when the model is online.
+        if not _is_on_topic(scenario, user_message, history):
+            return self._off_topic_response(scenario, english_only, mode="guard")
         if self.online:
             try:
                 return self._respond_ai(level, scenario, difficulty, history, user_message, learner, english_only)
             except Exception as exc:  # pragma: no cover - external service
                 print(f"[WARN] Gemini request failed; using offline mode: {exc}")
         return self._respond_offline(scenario, history, user_message, learner, english_only)
+
+    def _off_topic_response(self, scenario, english_only, mode="offline"):
+        language = "English" if english_only else "Vietnamese"
+        if language == "English":
+            feedback = "That answer does not match this situation yet, so I will not score it."
+            reply = "Let's stay with this scene. Please answer using the situation details, then try again."
+            tip = f"Try: \u201c{scenario['starter']}\u201d"
+            grammar_note = "We will check grammar after your answer is on topic."
+            word_choice_note = "Use words connected to this situation."
+        else:
+            feedback = "Câu trả lời chưa đúng tình huống nên mình chưa chấm điểm."
+            reply = "Mình tiếp tục tình huống này nhé. Hãy trả lời dựa trên bối cảnh rồi thử lại."
+            tip = f"Bạn có thể bắt đầu: \u201c{scenario['starter']}\u201d"
+            grammar_note = "Khi câu trả lời đúng chủ đề, mình sẽ kiểm tra ngữ pháp."
+            word_choice_note = "Hãy dùng từ liên quan đến tình huống này."
+        return _normalize(
+            {
+                "reply": reply,
+                "feedback": feedback,
+                "improved": "",
+                "tip": tip,
+                "grammar_note": grammar_note,
+                "word_choice_note": word_choice_note,
+                "sentence_pattern": scenario.get("starter", ""),
+                "scores": {},
+                "scored": False,
+                "off_topic": True,
+                "done": False,
+            },
+            mode=mode,
+        )
 
     def _respond_ai(self, level, scenario, difficulty, history, user_message, learner, english_only):
         from google.genai import types
@@ -134,6 +293,8 @@ class Coach:
         return _normalize(_parse_json(getattr(response, "text", "") or ""), mode="ai")
 
     def _respond_offline(self, scenario, history, user_message, learner, english_only):
+        if not _is_on_topic(scenario, user_message, history):
+            return self._off_topic_response(scenario, english_only, mode="offline")
         user_turns = sum(turn.get("role") == "user" for turn in history)
         replies = scenario.get("offline_replies", [])
         done = user_turns >= len(replies)
@@ -152,6 +313,8 @@ class Coach:
                 "sentence_pattern": sentence_pattern,
                 "scores": scores,
                 "done": done,
+                "scored": True,
+                "off_topic": False,
             },
             mode="offline",
         )
@@ -179,7 +342,8 @@ def _clamp_score(value) -> int:
 
 def _normalize(data: dict, mode: str) -> dict:
     raw_scores = data.get("scores") or {}
-    scores = {key: _clamp_score(raw_scores.get(key, 5)) for key in SCORE_KEYS}
+    scored = bool(data.get("scored", True)) and not bool(data.get("off_topic", False))
+    scores = {key: _clamp_score(raw_scores.get(key, 5)) for key in SCORE_KEYS} if scored else {}
     return {
         "reply": str(data.get("reply") or "...").strip(),
         "feedback": str(data.get("feedback") or "").strip(),
@@ -189,7 +353,9 @@ def _normalize(data: dict, mode: str) -> dict:
         "word_choice_note": str(data.get("word_choice_note") or "").strip(),
         "sentence_pattern": str(data.get("sentence_pattern") or "").strip(),
         "scores": scores,
-        "overall": round(sum(scores.values()) / len(scores), 1),
+        "overall": round(sum(scores.values()) / len(scores), 1) if scores else None,
+        "scored": scored,
+        "off_topic": bool(data.get("off_topic", False)),
         "done": bool(data.get("done", False)),
         "mode": mode,
     }
