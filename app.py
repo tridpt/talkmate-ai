@@ -197,6 +197,7 @@ def api_start():
             "starter": scenario["starter"],
             "vocabulary": scenario["vocabulary"],
             "sentence_builder": scenarios.sentence_builder_for(scenario),
+            "conversation_goals": scenarios.conversation_flow_for(scenario),
         },
         "opening": scenario["opening"],
     })

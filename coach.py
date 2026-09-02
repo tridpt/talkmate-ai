@@ -170,7 +170,68 @@ def _guard_reason(scenario: dict, user_message: str, history: list[dict] | None 
         return "incomplete"
     if _looks_like_keyword_soup(scenario, user_message):
         return "keyword_soup"
+    # A closing move can be valid even when it has no scenario noun (for
+    # example, "Thanks, that's all."). Check the active flow goal before
+    # applying the broader topic-term guard.
+    flow = scenarios.OFFLINE_FLOWS.get(scenario.get("icon"), {})
+    goals = flow.get("goals", [])
+    if goals:
+        progress = 0
+        for turn in (history or []):
+            if not isinstance(turn, dict) or turn.get("role") != "user":
+                continue
+            while progress < len(goals) and _goal_matches(goals[progress], turn.get("text", "")):
+                progress += 1
+        if progress < len(goals) and _goal_matches(goals[progress], user_message):
+            return None
     return None if tokens & topic_terms else "off_topic"
+
+
+def _goal_matches(goal: dict, text: str) -> bool:
+    words = _tokens(text)
+    terms = set(str(goal.get("terms") or "").lower().split())
+    return bool(words & terms)
+
+
+def _conversation_state(scenario: dict, history: list[dict] | None = None, user_message: str = "") -> dict:
+    """Track sequential conversation moves while allowing one message to cover several moves."""
+    flow = scenarios.OFFLINE_FLOWS.get(scenario.get("icon"), {})
+    goals = flow.get("goals", [])
+    prior_messages = [
+        turn.get("text", "")
+        for turn in (history or [])
+        if isinstance(turn, dict) and turn.get("role") == "user"
+    ]
+    before = 0
+    for message in prior_messages:
+        while before < len(goals) and _goal_matches(goals[before], message):
+            before += 1
+    completed = before
+    if user_message:
+        while completed < len(goals) and _goal_matches(goals[completed], user_message):
+            completed += 1
+    total = len(goals)
+    finished = bool(total and completed >= total)
+    if user_message and completed > before:
+        reply = goals[completed - 1].get("reply", "")
+    elif finished:
+        reply = goals[-1].get("reply", "")
+    elif goals:
+        reply = goals[completed].get("nudge", "")
+    else:
+        reply = "Keep the conversation moving with one clear sentence."
+    return {
+        "goals": [
+            {"id": goal.get("id", f"goal-{index}"), "label": goal.get("label", "Conversation step"), "complete": index < completed}
+            for index, goal in enumerate(goals)
+        ],
+        "completed": completed,
+        "total": total,
+        "task_score": round((completed / total) * 10, 1) if total else 0,
+        "next_goal": None if finished else (goals[completed].get("label") if completed < total else None),
+        "done": finished,
+        "reply": reply,
+    }
 
 # These phrases are common points of friction for Vietnamese English learners.
 PRONUNCIATION_PATTERNS = [
@@ -200,6 +261,7 @@ Context: {scenario['context']}
 Your character: {scenario['persona']}
 Learning goal: {level['goal']}
 Challenge: {DIFFICULTY.get(difficulty, DIFFICULTY['vua'])}
+Conversation moves to guide naturally: {', '.join(goal['label'] for goal in scenarios.OFFLINE_FLOWS.get(scenario.get('icon'), {}).get('goals', []))}
 
 Learner profile (use it quietly and constructively):
 - Current level: {learner.get('proficiency') or 'A2'}
@@ -223,9 +285,10 @@ Feedback rules:
   - Score relevance, grammar, word_choice, sentence, naturalness, clarity, and confidence from 0 to 10.
   - If the learner's message is invalid for this practice, set `off_topic` and `scored` to true/false respectively, set `guard_reason` to one of `off_topic`, `incomplete`, `repeated`, `keyword_soup`, `profanity`, or `language`, leave `improved` empty, and ask them to try again. Do not award a score.
 - Set done true after 4-7 learner turns when the scenario has a satisfying close.
+- Include `conversation` with completed move ids, a 0-10 `task_score`, the next goal, and `done`.
 
 Return valid JSON only:
-{{"reply":"...", "feedback":"...", "improved":"...", "tip":"...", "grammar_note":"...", "word_choice_note":"...", "sentence_pattern":"...", "scores":{{"relevance":0,"grammar":0,"word_choice":0,"sentence":0,"naturalness":0,"clarity":0,"confidence":0}}, "scored":true, "off_topic":false, "guard_reason":null, "done":false}}"""
+{{"reply":"...", "feedback":"...", "improved":"...", "tip":"...", "grammar_note":"...", "word_choice_note":"...", "sentence_pattern":"...", "scores":{{"relevance":0,"grammar":0,"word_choice":0,"sentence":0,"naturalness":0,"clarity":0,"confidence":0}}, "scored":true, "off_topic":false, "guard_reason":null, "conversation":{{"completed":0,"total":4,"task_score":0,"next_goal":"...","done":false}}, "done":false}}"""
 
 
 def _build_contents(history: list[dict], user_message: str):
@@ -266,15 +329,23 @@ class Coach:
         # never receive a score, even when the model is online.
         guard_reason = _guard_reason(scenario, user_message, history)
         if guard_reason:
-            return self._off_topic_response(scenario, english_only, reason=guard_reason, mode="guard")
+            return self._off_topic_response(
+                scenario, english_only, reason=guard_reason, mode="guard",
+                conversation=_conversation_state(scenario, history),
+            )
         if self.online:
             try:
-                return self._respond_ai(level, scenario, difficulty, history, user_message, learner, english_only)
+                result = self._respond_ai(level, scenario, difficulty, history, user_message, learner, english_only)
+                conversation = _conversation_state(scenario, history, user_message)
+                return _normalize(
+                    {**result, "conversation": conversation, "done": conversation["done"]},
+                    mode="ai",
+                )
             except Exception as exc:  # pragma: no cover - external service
                 print(f"[WARN] Gemini request failed; using offline mode: {exc}")
         return self._respond_offline(scenario, history, user_message, learner, english_only)
 
-    def _off_topic_response(self, scenario, english_only, reason="off_topic", mode="offline"):
+    def _off_topic_response(self, scenario, english_only, reason="off_topic", mode="offline", conversation=None):
         language = "English" if english_only else "Vietnamese"
         messages = {
             "off_topic": (
@@ -328,6 +399,7 @@ class Coach:
                 "scored": False,
                 "off_topic": True,
                 "guard_reason": reason,
+                "conversation": conversation,
                 "done": False,
             },
             mode=mode,
@@ -350,11 +422,17 @@ class Coach:
     def _respond_offline(self, scenario, history, user_message, learner, english_only):
         guard_reason = _guard_reason(scenario, user_message, history)
         if guard_reason:
-            return self._off_topic_response(scenario, english_only, reason=guard_reason, mode="offline")
-        user_turns = sum(turn.get("role") == "user" for turn in history)
-        replies = scenario.get("offline_replies", [])
-        done = user_turns >= len(replies)
-        reply = "That was lovely talking with you. Have a great day!" if done else replies[user_turns % len(replies)]
+            return self._off_topic_response(
+                scenario, english_only, reason=guard_reason, mode="offline",
+                conversation=_conversation_state(scenario, history),
+            )
+        conversation = _conversation_state(scenario, history, user_message)
+        reply = conversation["reply"]
+        if not reply:
+            user_turns = sum(turn.get("role") == "user" for turn in history)
+            replies = scenario.get("offline_replies", [])
+            reply = replies[user_turns % len(replies)] if replies else "Keep the conversation moving with one clear sentence."
+        done = conversation["done"]
         scores, feedback, improved, tip, grammar_note, word_choice_note, sentence_pattern = _review_offline(
             user_message, scenario, learner, english_only
         )
@@ -371,6 +449,7 @@ class Coach:
                 "done": done,
                 "scored": True,
                 "off_topic": False,
+                "conversation": conversation,
             },
             mode="offline",
         )
@@ -396,11 +475,46 @@ def _clamp_score(value) -> int:
         return 5
 
 
+def _normalize_conversation(data) -> dict | None:
+    if not isinstance(data, dict):
+        return None
+    raw_goals = data.get("goals") if isinstance(data.get("goals"), list) else []
+    goals = []
+    for index, goal in enumerate(raw_goals[:8]):
+        if not isinstance(goal, dict):
+            continue
+        goal_id = str(goal.get("id") or f"goal-{index}").strip()[:40]
+        label = str(goal.get("label") or "Conversation step").strip()[:100]
+        if goal_id and label:
+            goals.append({"id": goal_id, "label": label, "complete": bool(goal.get("complete", False))})
+    try:
+        total = max(0, min(8, int(data.get("total", len(goals)))))
+    except (TypeError, ValueError):
+        total = len(goals)
+    try:
+        completed = max(0, min(total, int(data.get("completed", 0))))
+    except (TypeError, ValueError):
+        completed = sum(goal["complete"] for goal in goals)
+    try:
+        task_score = round(max(0, min(10, float(data.get("task_score", 0)))), 1)
+    except (TypeError, ValueError):
+        task_score = round((completed / total) * 10, 1) if total else 0
+    return {
+        "goals": goals,
+        "completed": completed,
+        "total": total,
+        "task_score": task_score,
+        "next_goal": str(data.get("next_goal") or "").strip()[:100] or None,
+        "done": bool(data.get("done", False)),
+    }
+
+
 def _normalize(data: dict, mode: str) -> dict:
     raw_scores = data.get("scores") or {}
     scored = bool(data.get("scored", True)) and not bool(data.get("off_topic", False))
     scores = {key: _clamp_score(raw_scores.get(key, 5)) for key in SCORE_KEYS} if scored else {}
     guard_reason = str(data.get("guard_reason") or "").strip() or ("off_topic" if not scored and data.get("off_topic") else None)
+    conversation = _normalize_conversation(data.get("conversation"))
     return {
         "reply": str(data.get("reply") or "...").strip(),
         "feedback": str(data.get("feedback") or "").strip(),
@@ -414,6 +528,7 @@ def _normalize(data: dict, mode: str) -> dict:
         "scored": scored,
         "off_topic": bool(data.get("off_topic", False)),
         "guard_reason": guard_reason,
+        "conversation": conversation,
         "done": bool(data.get("done", False)),
         "mode": mode,
     }

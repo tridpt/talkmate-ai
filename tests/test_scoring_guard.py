@@ -4,7 +4,8 @@ from __future__ import annotations
 import unittest
 
 import app as server
-from coach import Coach
+import scenarios
+from coach import Coach, _conversation_state
 
 
 class CoachScoringGuardTests(unittest.TestCase):
@@ -108,6 +109,40 @@ class CoachScoringGuardTests(unittest.TestCase):
         self.assertTrue(self.reply("everyday", 0, "to go")["scored"])
         self.assertTrue(self.reply("everyday", 0, "for here")["scored"])
         self.assertFalse(self.reply("everyday", 3, "to go")["scored"])
+
+    def test_offline_conversation_tracks_branching_moves(self):
+        scenario = scenarios.get_scenario("everyday", 0)
+        state = _conversation_state(scenario, [], "I'd like an iced latte to go, please.")
+
+        self.assertEqual(state["completed"], 3)
+        self.assertEqual(state["total"], 4)
+        self.assertEqual(state["task_score"], 7.5)
+        self.assertEqual(state["next_goal"], "Close politely")
+        self.assertIn("receipt", state["reply"].lower())
+
+    def test_offline_flow_finishes_when_the_learner_closes(self):
+        scenario = scenarios.get_scenario("everyday", 0)
+        history = [
+            {"role": "user", "text": "I'd like an iced latte to go, please."},
+        ]
+        state = _conversation_state(scenario, history, "Thanks, that's all.")
+
+        self.assertTrue(state["done"])
+        self.assertEqual(state["completed"], state["total"])
+        self.assertEqual(state["task_score"], 10.0)
+
+    def test_active_closing_move_is_not_rejected_as_off_topic(self):
+        scenario = scenarios.get_scenario("everyday", 0)
+        history = [
+            {"role": "user", "text": "I'd like an iced latte to go, please."},
+            {"role": "model", "text": "Perfect. Would you like a receipt?"},
+        ]
+        data = server.coach.respond("everyday", 0, "vua", history, "Thanks, that's all.")
+
+        self.assertTrue(data["scored"])
+        self.assertFalse(data["off_topic"])
+        self.assertTrue(data["done"])
+        self.assertEqual(data["conversation"]["task_score"], 10.0)
 
 
 class ReplyApiScoringTests(unittest.TestCase):

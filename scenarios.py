@@ -206,6 +206,108 @@ LEVELS = {
 }
 
 
+# Each flow stays local and transparent: a learner progresses through a few
+# concrete conversational moves rather than a fixed list of partner replies.
+OFFLINE_FLOWS = {
+    "cup": {
+        "goals": [
+            {"id": "order", "label": "Place your order", "terms": "like want order coffee latte tea drink espresso cappuccino", "reply": "Great choice. Would you like that hot or iced?", "nudge": "Tell me what you would like to drink."},
+            {"id": "detail", "label": "Add one drink detail", "terms": "hot iced ice milk sugar small medium large", "reply": "Got it. Is that for here or to go?", "nudge": "Add one detail, such as hot, iced, or milk."},
+            {"id": "confirm", "label": "Confirm how you will take it", "terms": "here go takeaway take away", "reply": "Perfect. Would you like a receipt?", "nudge": "Say whether it is for here or to go."},
+            {"id": "close", "label": "Close politely", "terms": "thanks thank all good thats all that's all", "reply": "You are all set. Enjoy your drink!", "nudge": "Close the order politely with thanks."},
+        ],
+    },
+    "map": {
+        "goals": [
+            {"id": "ask", "label": "Ask for the station", "terms": "station train directions where find get", "reply": "Of course. The station is about a ten-minute walk from here.", "nudge": "Ask where the station is or how to get there."},
+            {"id": "clarify", "label": "Ask one follow-up question", "terms": "how long which way left right straight bus walk turn", "reply": "Walk straight ahead, then turn left at the traffic lights.", "nudge": "Ask a follow-up about the route or how long it takes."},
+            {"id": "confirm", "label": "Confirm the route", "terms": "so go got it corner lights building", "reply": "Yes, that is right. You cannot miss the big glass building on the corner.", "nudge": "Repeat one route detail to confirm you understand."},
+            {"id": "close", "label": "Thank the local", "terms": "thanks thank helpful appreciate", "reply": "You are welcome. Safe travels!", "nudge": "Thank them before you go."},
+        ],
+    },
+    "home": {
+        "goals": [
+            {"id": "introduce", "label": "Introduce yourself", "terms": "nice meet im i'm name moved live apartment", "reply": "Nice to meet you too! Did you just move into the building?", "nudge": "Introduce yourself and say hello."},
+            {"id": "share", "label": "Share one personal detail", "terms": "moved new work study live food like", "reply": "That sounds nice. What kind of food do you like?", "nudge": "Share one detail about moving in, work, or what you like."},
+            {"id": "ask", "label": "Ask for a local recommendation", "terms": "recommend recommendation around restaurant cafe food place", "reply": "You should try the little noodle shop across the street.", "nudge": "Ask for one place or recommendation nearby."},
+            {"id": "close", "label": "End warmly", "terms": "thanks thank see welcome", "reply": "Any time. Welcome to the neighborhood!", "nudge": "Close the small talk warmly."},
+        ],
+    },
+    "phone": {
+        "goals": [
+            {"id": "identify", "label": "Explain the reservation issue", "terms": "reservation booking hotel change date check in", "reply": "Of course. Could I have the name on the reservation, please?", "nudge": "Say that you are calling about a reservation."},
+            {"id": "request", "label": "Request a new date or option", "terms": "would like need move new date available change to", "reply": "I can see your booking. Which date would you like to change it to?", "nudge": "Ask to change the date or ask what is available."},
+            {"id": "confirm", "label": "Confirm the new details", "terms": "confirm correct yes date night nights", "reply": "Great. I have updated it for you. Is there anything else I can help with?", "nudge": "Confirm the new date or number of nights."},
+            {"id": "close", "label": "End the call politely", "terms": "thanks thank all thats all that's all", "reply": "You are very welcome. Have a lovely stay!", "nudge": "Thank the receptionist and close the call."},
+        ],
+    },
+    "doctor": {
+        "goals": [
+            {"id": "symptom", "label": "Describe your main symptom", "terms": "sore throat fever pain sick cough headache symptom", "reply": "I see. Do you have a fever or any trouble swallowing?", "nudge": "Describe your main symptom and when it started."},
+            {"id": "detail", "label": "Answer a follow-up question", "terms": "since yesterday no yes fever swallow medicine took allergy", "reply": "Thanks for explaining that. Have you taken anything for the pain so far?", "nudge": "Give one clear detail about timing, fever, or medicine."},
+            {"id": "ask", "label": "Ask what to do next", "terms": "should what do medicine prescription treatment recommend", "reply": "It sounds mild. Please rest, drink plenty of water, and come back if it gets worse.", "nudge": "Ask what you should do next."},
+            {"id": "close", "label": "Close the visit politely", "terms": "thanks thank appreciate", "reply": "You are welcome. I hope you feel better soon.", "nudge": "Thank the doctor before you leave."},
+        ],
+    },
+    "key": {
+        "goals": [
+            {"id": "interest", "label": "React to the apartment", "terms": "looks like apartment interested great nice", "reply": "I am glad you like it. What would you like to know?", "nudge": "Say what you think about the apartment."},
+            {"id": "ask", "label": "Ask a practical question", "terms": "rent utilities deposit lease pets furnished kitchen", "reply": "The monthly rent is twelve hundred, and water is included.", "nudge": "Ask about rent, utilities, deposit, or another practical detail."},
+            {"id": "decision", "label": "Discuss your move-in plan", "terms": "move move in soon date available decide", "reply": "The deposit is one month's rent. Are you planning to move in soon?", "nudge": "Say when you might move in or ask about availability."},
+            {"id": "close", "label": "Close the viewing", "terms": "thanks thank think contact", "reply": "Of course. Let me know if you would like another viewing.", "nudge": "Thank the agent and say what you will do next."},
+        ],
+    },
+    "plate": {
+        "goals": [
+            {"id": "allergy", "label": "Explain your allergy", "terms": "allergy allergic peanuts ingredients safe", "reply": "Thank you for telling me. That dish contains peanuts, but I can suggest a safe alternative.", "nudge": "Tell the server about your allergy first."},
+            {"id": "order", "label": "Choose or ask about a safe dish", "terms": "order dish menu alternative vegetarian chicken salad", "reply": "That is a good choice. Would you like any changes to it?", "nudge": "Choose a safe dish or ask about an alternative."},
+            {"id": "change", "label": "Request one small change", "terms": "without on side no sauce change", "reply": "Absolutely. I will put the sauce on the side for you.", "nudge": "Request one small change, such as without sauce."},
+            {"id": "close", "label": "Finish the order politely", "terms": "thanks thank thats all that's all", "reply": "Perfect. I will get that started for you.", "nudge": "Thank the server and finish your order."},
+        ],
+    },
+    "globe": {
+        "goals": [
+            {"id": "recommend", "label": "Give one recommendation", "terms": "should recommend visit museum beach market local", "reply": "That sounds perfect. Is it easy to get there by public transport?", "nudge": "Recommend one place to visit."},
+            {"id": "detail", "label": "Add a useful detail", "terms": "bus train walk minutes near easy", "reply": "Great, that sounds easy enough. Have you lived here for a long time?", "nudge": "Add a direction, transport tip, or reason it is worth visiting."},
+            {"id": "ask", "label": "Ask about the traveler", "terms": "where from brings how long trip travel", "reply": "I just arrived yesterday, so your advice really helps.", "nudge": "Ask the traveler one friendly question."},
+            {"id": "close", "label": "End the chat warmly", "terms": "thanks thank enjoy welcome", "reply": "I really appreciate your help. Maybe I will see you around the city!", "nudge": "Close the chat warmly."},
+        ],
+    },
+    "briefcase": {
+        "goals": [
+            {"id": "intro", "label": "Introduce your experience", "terms": "currently experience work studied responsible project", "reply": "That sounds interesting. What made you apply for this particular role?", "nudge": "Introduce your current experience or background."},
+            {"id": "motive", "label": "Connect yourself to the role", "terms": "apply role interested opportunity because", "reply": "That makes sense. Could you give me an example of a project you are proud of?", "nudge": "Say why this role interests you."},
+            {"id": "example", "label": "Give one concrete example", "terms": "project led built improved challenge result", "reply": "Great example. Do you have any questions for me about the team?", "nudge": "Give one short example from a project or challenge."},
+            {"id": "close", "label": "Ask a final question or close", "terms": "question team culture thanks thank", "reply": "Thank you for your thoughtful questions. We will be in touch soon.", "nudge": "Ask one question about the team or thank the interviewer."},
+        ],
+    },
+    "spark": {
+        "goals": [
+            {"id": "idea", "label": "Share a practical idea", "terms": "suggest idea could launch users plan", "reply": "I like the direction, but do we have enough time to do that well?", "nudge": "Share one practical idea for the launch."},
+            {"id": "tradeoff", "label": "Address a concern", "terms": "time timeline risk trade off because", "reply": "What would be the smallest version we could test this week?", "nudge": "Address the time, risk, or trade-off."},
+            {"id": "test", "label": "Suggest a small test", "terms": "test smaller version measure results week", "reply": "That feels realistic. Let us bring it to the team lead this afternoon.", "nudge": "Suggest a small test or a way to measure results."},
+            {"id": "close", "label": "Agree on the next step", "terms": "agree next step team lead thanks", "reply": "Great. I will add it to the meeting notes.", "nudge": "Agree on the next step."},
+        ],
+    },
+    "handshake": {
+        "goals": [
+            {"id": "intro", "label": "Introduce yourself", "terms": "im i'm work study name", "reply": "That is cool. What kind of projects do you usually work on?", "nudge": "Introduce yourself and say what you do."},
+            {"id": "ask", "label": "Ask about their work", "terms": "what kind projects work do you how", "reply": "I have been curious about that area too. How did you get into it?", "nudge": "Ask one open question about their work."},
+            {"id": "common", "label": "Find common ground", "terms": "also too interested curious similar", "reply": "It sounds like we have a lot in common. Would you like to connect on LinkedIn?", "nudge": "Share one interest or point of common ground."},
+            {"id": "close", "label": "Suggest staying in touch", "terms": "linkedin connect keep touch thanks", "reply": "I have really enjoyed talking with you. Let us keep in touch.", "nudge": "Suggest staying in touch or close the conversation."},
+        ],
+    },
+    "presentation": {
+        "goals": [
+            {"id": "problem", "label": "Explain the problem", "terms": "problem users customer issue noticed", "reply": "That is a clear problem. What is the simplest version of your solution?", "nudge": "State the problem you noticed."},
+            {"id": "solution", "label": "Propose a solution", "terms": "propose solution build create simpler", "reply": "How would we know whether it is working after the first month?", "nudge": "Propose one simple solution."},
+            {"id": "impact", "label": "Explain the expected impact", "terms": "impact measure results users improve month", "reply": "I like the focus. What is the next step to make this real?", "nudge": "Explain how you would measure the impact."},
+            {"id": "close", "label": "Confirm the next step", "terms": "next step outline review friday thanks", "reply": "Put together a short outline and we can review it on Friday.", "nudge": "Confirm one concrete next step."},
+        ],
+    },
+}
+
+
 SENTENCE_BUILDERS = {
     "cup": {
         "label": "POLITE ORDER",
@@ -328,6 +430,15 @@ SENTENCE_BUILDERS = {
 def sentence_builder_for(scenario: dict):
     """Return a reusable sentence frame for the selected real-life situation."""
     return SENTENCE_BUILDERS.get(scenario.get("icon"), SENTENCE_BUILDERS["home"])
+
+
+def conversation_flow_for(scenario: dict):
+    """Return safe public goal metadata for the offline conversation flow."""
+    flow = OFFLINE_FLOWS.get(scenario.get("icon"), {})
+    return [
+        {"id": goal["id"], "label": goal["label"]}
+        for goal in flow.get("goals", [])
+    ]
 
 
 def level_list():

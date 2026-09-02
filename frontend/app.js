@@ -97,6 +97,9 @@ const els = {
   title: $("#sc-title"),
   context: $("#sc-context"),
   goal: $("#sc-goal"),
+  taskScore: $("#task-score"),
+  taskProgress: $("#task-progress"),
+  conversationGoals: $("#conversation-goals"),
   category: $("#sc-category"),
   icon: $("#scene-icon"),
   vocabulary: $("#vocabulary"),
@@ -771,8 +774,26 @@ function renderPractice(opening) {
   els.input.value = "";
   els.input.placeholder = `Try: ${state.scenario.starter}`;
   els.sessionLanguage.classList.toggle("hidden", !state.englishOnly);
+  renderConversationFlow();
   updateTurnCounter();
   addMessage("partner", opening);
+}
+
+function renderConversationFlow(conversation = null) {
+  if (!els.conversationGoals) return;
+  const goals = conversation?.goals || state.scenario?.conversation_goals || [];
+  const completed = conversation?.completed || 0;
+  const total = conversation?.total || goals.length || 4;
+  const taskScore = conversation?.task_score ?? 0;
+  els.taskScore.textContent = `${taskScore} / 10`;
+  els.taskProgress.textContent = `${completed} / ${total} moves complete`;
+  els.conversationGoals.replaceChildren();
+  goals.forEach((goal, index) => {
+    const item = document.createElement("li");
+    item.className = index < completed ? "complete" : "";
+    item.textContent = goal.label;
+    els.conversationGoals.append(item);
+  });
 }
 
 function renderSentenceBuilder(builder) {
@@ -828,6 +849,7 @@ function updateTurnCounter() {
 
 function renderCoaching(data) {
   els.coachBox.classList.remove("hidden");
+  if (data.conversation) renderConversationFlow(data.conversation);
   els.feedback.textContent = data.feedback;
   const reason = data.scored === false ? guardReasonLabels[data.guard_reason] || "NO SCORE - try one clear sentence" : "";
   els.guardReason.textContent = reason;
