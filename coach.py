@@ -9,8 +9,9 @@ from collections import Counter
 import config
 import scenarios
 
-SCORE_KEYS = ["clarity", "grammar", "word_choice", "sentence", "naturalness", "confidence"]
+SCORE_KEYS = ["relevance", "grammar", "word_choice", "sentence", "naturalness", "clarity", "confidence"]
 SCORE_LABELS = {
+    "relevance": "Relevance",
     "clarity": "Clarity",
     "grammar": "Grammar",
     "word_choice": "Word choice",
@@ -208,12 +209,12 @@ Feedback rules:
 - Praise what is understandable first. Correct only the one most important grammar, word choice, or politeness issue.
 - `improved` must be a natural English rewrite of the learner's exact meaning, or an empty string if it is already excellent.
   - `feedback` and `tip` must be short {feedback_language} sentences. `tip` teaches one reusable English phrase.
-  - Score clarity, grammar, word_choice, sentence, naturalness, and confidence from 0 to 10.
+  - Score relevance, grammar, word_choice, sentence, naturalness, clarity, and confidence from 0 to 10.
   - If the learner's message is unrelated to this situation, set `off_topic` and `scored` to true/false respectively, set `done` to false, leave `improved` empty, and ask them to answer the scenario again. Do not award a score for an off-topic message.
 - Set done true after 4-7 learner turns when the scenario has a satisfying close.
 
 Return valid JSON only:
-{{"reply":"...", "feedback":"...", "improved":"...", "tip":"...", "grammar_note":"...", "word_choice_note":"...", "sentence_pattern":"...", "scores":{{"clarity":0,"grammar":0,"word_choice":0,"sentence":0,"naturalness":0,"confidence":0}}, "scored":true, "off_topic":false, "done":false}}"""
+{{"reply":"...", "feedback":"...", "improved":"...", "tip":"...", "grammar_note":"...", "word_choice_note":"...", "sentence_pattern":"...", "scores":{{"relevance":0,"grammar":0,"word_choice":0,"sentence":0,"naturalness":0,"clarity":0,"confidence":0}}, "scored":true, "off_topic":false, "done":false}}"""
 
 
 def _build_contents(history: list[dict], user_message: str):
@@ -440,7 +441,15 @@ def _review_offline(message: str, scenario: dict, learner: dict, english_only: b
     text = message.strip()
     lower = text.lower()
     words = len(re.findall(r"\b[\w']+\b", text))
-    scores = {"clarity": 6, "grammar": 7, "word_choice": 7, "sentence": 6, "naturalness": 6, "confidence": 7}
+    scores = {
+        "relevance": 10,
+        "grammar": 8,
+        "word_choice": 8,
+        "sentence": 7,
+        "naturalness": 7,
+        "clarity": 7,
+        "confidence": 7,
+    }
     feedback = "Your meaning is clear. Keep the conversation moving." if english_only else "Ý của bạn rõ ràng, cứ tiếp tục giữ nhịp hội thoại nhé."
     improved = ""
     tip = f"Try: “{scenario['starter']}”" if english_only else f"Bạn có thể dùng: “{scenario['starter']}”"
@@ -484,11 +493,12 @@ def _review_offline(message: str, scenario: dict, learner: dict, english_only: b
             feedback = "Your reply is a little short, so it is harder to build a real conversation." if english_only else "Câu trả lời hơi ngắn, nên khó tạo phản xạ hội thoại."
             scores["clarity"] = 4
             scores["confidence"] = 5
-            scores["sentence"] = 5
+            scores["sentence"] = 4
             tip = "Add one detail or a question: “Could you tell me more?”" if english_only else "Thêm một chi tiết hoặc một câu hỏi: “Could you tell me more?”"
             sentence_pattern = "Add one detail + one follow-up question."
         elif not re.search(r"[?.!]$", text):
             feedback = "Your sentence is clear. Let your voice fall at the end so it sounds complete." if english_only else "Câu của bạn dễ hiểu. Khi nói, hãy hạ giọng ở cuối câu để nghe trọn ý hơn."
+            scores["sentence"] = 6
         elif "please" in lower or "could" in lower:
             feedback = "Very good - your wording is polite and natural." if english_only else "Rất tốt - bạn dùng cách nói lịch sự và tự nhiên."
             scores["naturalness"] = 8

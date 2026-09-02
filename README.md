@@ -22,6 +22,10 @@ python -m unittest discover -s tests -v
 It covers valid responses for every scene plus grammar errors, irrelevant replies,
 keyword lists, repeated phrases, profanity, and API response fields.
 
+Scores use a seven-part rubric: relevance, grammar, word choice, sentence,
+naturalness, clarity, and confidence. Each score is shown as a separate chip;
+hover over a chip to see what it measures.
+
 The app works in guided offline mode by default. To enable AI role-play and more tailored feedback, create a `.env` file in this folder:
 
 ```text

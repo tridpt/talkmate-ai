@@ -36,6 +36,24 @@ const challengePrompts = [
   "Imagine you are at an airport. What would you ask the staff?",
   "Tell a new colleague what you enjoy doing after work.",
 ];
+const scoreLabels = {
+  relevance: "relevance",
+  grammar: "grammar",
+  word_choice: "word choice",
+  sentence: "sentence",
+  naturalness: "naturalness",
+  clarity: "clarity",
+  confidence: "confidence",
+};
+const scoreHints = {
+  relevance: "Does the answer match this situation?",
+  grammar: "Are the grammar forms correct?",
+  word_choice: "Are the words accurate and suitable?",
+  sentence: "Is the sentence complete and well formed?",
+  naturalness: "Does it sound natural and polite?",
+  clarity: "Is the meaning easy to understand?",
+  confidence: "Does the answer sound ready to use?",
+};
 const badges = [
   { id: "first_scene", name: "FIRST HELLO", hint: "Complete one conversation." },
   { id: "five_minutes", name: "FIVE MINUTES", hint: "Speak for five minutes in one day." },
@@ -773,7 +791,8 @@ function renderCoaching(data) {
   Object.entries(data.scores).forEach(([name, score]) => {
     const item = document.createElement("span");
     item.className = "score";
-    const label = document.createTextNode(name.replace("_", " "));
+    item.title = scoreHints[name] || "Score for this part of your reply.";
+    const label = document.createTextNode(scoreLabels[name] || name.replace("_", " "));
     const value = document.createElement("strong");
     value.textContent = score;
     item.append(label, " ", value);

@@ -38,7 +38,7 @@ class CoachScoringGuardTests(unittest.TestCase):
                 data = self.reply(level, index, message)
                 self.assertTrue(data["scored"])
                 self.assertFalse(data["off_topic"])
-                self.assertEqual(set(data["scores"]), {"clarity", "grammar", "word_choice", "sentence", "naturalness", "confidence"})
+                self.assertEqual(set(data["scores"]), {"relevance", "clarity", "grammar", "word_choice", "sentence", "naturalness", "confidence"})
 
     def test_relevant_grammar_error_is_scored_for_correction(self):
         data = self.reply("everyday", 0, "I want a coffee, please.")
@@ -46,6 +46,14 @@ class CoachScoringGuardTests(unittest.TestCase):
         self.assertTrue(data["scored"])
         self.assertFalse(data["off_topic"])
         self.assertIn("I'd like", data["improved"])
+        self.assertEqual(data["scores"]["relevance"], 10)
+
+    def test_rubric_changes_for_politeness(self):
+        direct = self.reply("everyday", 0, "I need coffee now.")
+        polite = self.reply("everyday", 0, "Could I have an iced latte to go, please?")
+
+        self.assertLess(direct["scores"]["naturalness"], polite["scores"]["naturalness"])
+        self.assertEqual(direct["scores"]["relevance"], polite["scores"]["relevance"])
 
     def test_invalid_replies_receive_no_score(self):
         vietnamese_profanity = chr(273) + chr(7883) + "t symptoms"
@@ -120,7 +128,7 @@ class ReplyApiScoringTests(unittest.TestCase):
         self.assertTrue(data["scored"])
         self.assertFalse(data["off_topic"])
         self.assertIsInstance(data["overall"], float)
-        self.assertEqual(len(data["scores"]), 6)
+        self.assertEqual(len(data["scores"]), 7)
 
 
 if __name__ == "__main__":
