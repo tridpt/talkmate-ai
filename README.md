@@ -11,6 +11,17 @@ python app.py
 
 Then open `http://127.0.0.1:5001`.
 
+## Test scoring
+
+Run the scoring regression suite before changing coaching rules:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+It covers valid responses for every scene plus grammar errors, irrelevant replies,
+keyword lists, repeated phrases, profanity, and API response fields.
+
 The app works in guided offline mode by default. To enable AI role-play and more tailored feedback, create a `.env` file in this folder:
 
 ```text

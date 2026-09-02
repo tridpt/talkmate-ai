@@ -42,9 +42,9 @@ TOPIC_KEYWORDS = {
 }
 COMMON_CONVERSATION_WORDS = {
     "yes", "no", "sure", "okay", "ok", "please", "thanks", "thank", "could", "can", "would",
-    "i", "we", "you", "he", "she", "they", "my", "your", "our", "the", "a", "an", "it", "is",
+    "i", "we", "you", "he", "she", "they", "me", "my", "your", "our", "the", "a", "an", "it", "is",
     "are", "am", "was", "were", "be", "to", "for", "of", "in", "on", "at", "and", "or", "but",
-    "that", "this", "there", "here", "just", "really", "maybe", "also", "more", "less", "all", "any",
+    "that", "this", "there", "here", "what", "where", "when", "why", "how", "just", "really", "maybe", "also", "more", "less", "all", "any",
     "anything", "else", "fine", "good", "great", "nice", "perfect", "favorite", "delicious", "interesting",
 }
 BLOCKED_WORDS = {
@@ -54,6 +54,16 @@ BLOCKED_WORDS = {
 SENTENCE_LINKING_WORDS = {
     "a", "an", "the", "my", "your", "our", "their", "this", "that", "for", "to", "from", "with",
     "about", "on", "in", "at", "since", "because", "if", "when", "and", "or", "but",
+}
+SENTENCE_STRUCTURE_WORDS = {
+    "i", "you", "we", "he", "she", "they", "could", "can", "would", "should", "will", "have", "has", "had",
+    "am", "is", "are", "do", "does", "did", "tell", "ask", "confirm", "need", "want", "like", "feel", "suggest",
+    "propose", "recommend", "visit", "work", "explain", "change", "book", "order", "get", "please",
+}
+VALID_SENTENCE_PREFIXES = {
+    ("i", "have"), ("i", "am"), ("i", "need"), ("i", "want"), ("i", "like"), ("i", "feel"),
+    ("you", "should"), ("you", "can"), ("we", "could"), ("we", "should"), ("please", "confirm"),
+    ("could", "you", "tell"), ("could", "you", "ask"),
 }
 SHORT_VALID_REPLIES = {"to go", "for here", "hot please", "iced please", "yes please", "no thanks", "that's all", "all good"}
 UNIVERSAL_SHORT_REPLIES = {"yes", "no", "sure", "okay", "ok", "please", "thanks", "thank", "yes please", "no thanks", "that's all", "all good"}
@@ -103,8 +113,12 @@ def _looks_like_keyword_soup(scenario: dict, user_message: str) -> bool:
     topic_terms = _topic_terms(scenario)
     topic_count = sum(1 for word in words if word in topic_terms or word.replace("-", "") in topic_terms)
     link_count = sum(1 for word in words if word in SENTENCE_LINKING_WORDS)
-    if topic_count < 4 or link_count > 1:
+    structure_count = sum(1 for word in words if word in SENTENCE_STRUCTURE_WORDS)
+    if topic_count < 4 or link_count > 1 or structure_count + link_count >= 4:
         return False
+    for size in (2, 3):
+        if tuple(words[:size]) in VALID_SENTENCE_PREFIXES:
+            return False
     # A polite imperative such as "Please confirm ..." can be complete even
     # when it is short; otherwise a bare keyword list should not be scored.
     if len(words) == 5 and "please" in words:
