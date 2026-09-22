@@ -93,6 +93,21 @@ const reviewExercisePrompts = {
   word_order: "Put the words in a natural English order.",
   word_choice: "Rewrite this with a more natural English phrase.",
 };
+const progressSignalMeta = {
+  articles: { label: "Articles", action: "Say three short sentences with a, an, and the." },
+  prepositions: { label: "Prepositions", action: "Build three useful phrases with in, on, at, or to." },
+  verb_forms: { label: "Verb forms", action: "Say three sentences with the verb form you want to make automatic." },
+  word_order: { label: "Word order", action: "Rebuild three short questions in a natural English order." },
+  word_choice: { label: "Word choice", action: "Swap one familiar phrase for a more natural alternative in your next reply." },
+  "polite requests": { label: "Polite requests", action: "Turn three direct requests into friendly questions." },
+  "verb forms after I": { label: "Verb forms after I", action: "Say three short I-statements with the correct verb form." },
+  "natural adverbs": { label: "Natural adverbs", action: "Use really, quite, or very naturally in three short sentences." },
+  "modal verbs": { label: "Modal verbs", action: "Practice three questions with can, could, or would." },
+  "longer responses": { label: "Longer responses", action: "Add one reason or specific detail to each reply in your next scene." },
+  "natural phrasing": { label: "Natural phrasing" },
+  "confident tone": { label: "Confident tone" },
+  "keeping a conversation going": { label: "Keeping the conversation going" },
+};
 const badges = [
   { id: "first_scene", name: "FIRST HELLO", hint: "Complete one conversation." },
   { id: "five_minutes", name: "FIVE MINUTES", hint: "Speak for five minutes in one day." },
@@ -199,6 +214,13 @@ const els = {
   statStreak: $("#stat-streak"),
   statScore: $("#stat-score"),
   nextStep: $("#next-step"),
+  pulseTrendCard: $("#pulse-trend-card"),
+  pulseTrend: $("#pulse-trend"),
+  pulseTrendCopy: $("#pulse-trend-copy"),
+  pulseStrength: $("#pulse-strength"),
+  pulseStrengthCopy: $("#pulse-strength-copy"),
+  pulseFocus: $("#pulse-focus"),
+  pulseFocusCopy: $("#pulse-focus-copy"),
   goalSelect: $("#goal-select"),
   focusSummary: $("#focus-summary"),
   englishOnly: $("#english-only"),
@@ -637,6 +659,138 @@ function getStreak(days) {
   return streak;
 }
 
+function prettyProgressSignal(signal) {
+  const value = `${signal || ""}`.trim();
+  if (!value) return "Your next skill";
+  if (progressSignalMeta[value]?.label) return progressSignalMeta[value].label;
+  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function topProgressSignal(signals) {
+  const values = signals && typeof signals === "object" ? signals : {};
+  return Object.entries(values)
+    .map(([name, count]) => ({ name, count: Number(count) || 0 }))
+    .filter(({ name, count }) => name && count > 0)
+    .sort((first, second) => second.count - first.count || first.name.localeCompare(second.name))[0] || null;
+}
+
+function scoreValuesForPulse(progress) {
+  const events = (progress.scoreEvents || [])
+    .map((event, index) => ({ score: Number(event?.score), at: Date.parse(event?.at || ""), index }))
+    .filter(({ score }) => Number.isFinite(score) && score >= 0 && score <= 10);
+  if (events.length) {
+    const ordered = events.every(({ at }) => Number.isFinite(at))
+      ? events.sort((first, second) => first.at - second.at || first.index - second.index)
+      : events;
+    return ordered.map(({ score }) => score);
+  }
+  return (progress.scores || []).map(Number).filter((score) => Number.isFinite(score) && score >= 0 && score <= 10);
+}
+
+function scoreTrendForPulse(progress) {
+  const scores = scoreValuesForPulse(progress).slice(-6);
+  if (!scores.length) {
+    return {
+      value: "Build your baseline",
+      copy: "Finish two scored scenes to see how your scores are moving.",
+      direction: "starting",
+    };
+  }
+  if (scores.length === 1) {
+    return {
+      value: `${scores[0].toFixed(1)} / 10 logged`,
+      copy: "One score is in. Complete one more scene to reveal your first trend.",
+      direction: "starting",
+    };
+  }
+  const recentCount = Math.min(3, Math.floor(scores.length / 2));
+  const recentScores = scores.slice(-recentCount);
+  const earlierScores = scores.slice(0, -recentCount);
+  const recentAverage = recentScores.reduce((total, score) => total + score, 0) / recentScores.length;
+  const earlierAverage = earlierScores.reduce((total, score) => total + score, 0) / earlierScores.length;
+  const difference = recentAverage - earlierAverage;
+  const comparison = scores.length > 3
+    ? `your latest ${recentScores.length} scores with the ${earlierScores.length} before them`
+    : "your latest score with the one before it";
+  if (difference >= 0.35) {
+    return {
+      value: `Up ${difference.toFixed(1)} pts`,
+      copy: `Great sign: scores are moving upward when we compare ${comparison}. Keep the same clear structure in a fresh scene.`,
+      direction: "up",
+    };
+  }
+  if (difference <= -0.35) {
+    return {
+      value: `${recentAverage.toFixed(1)} latest`,
+      copy: `Your latest score is ${Math.abs(difference).toFixed(1)} points lower than before. Rehearse one correction, then try again.`,
+      direction: "reset",
+    };
+  }
+  return {
+    value: "Holding steady",
+    copy: `Your recent scores are within ${Math.abs(difference).toFixed(1)} points. Add one specific detail to your next answer.`,
+    direction: "steady",
+  };
+}
+
+function focusFromReviewItems(items) {
+  const reviewItems = Array.isArray(items) ? items : [];
+  const categoryCounts = reviewItems.reduce((counts, item) => {
+    const category = `${item?.category || ""}`.trim();
+    if (category) counts[category] = (counts[category] || 0) + 1;
+    return counts;
+  }, {});
+  return topProgressSignal(categoryCounts);
+}
+
+function buildProgressPulse(progress) {
+  const profile = progress.profile && typeof progress.profile === "object" ? progress.profile : {};
+  const trend = scoreTrendForPulse(progress);
+  const strongest = topProgressSignal(profile.strengths);
+  const recurringError = topProgressSignal(profile.errors) || focusFromReviewItems(progress.reviewItems);
+  const strength = strongest
+    ? {
+      value: prettyProgressSignal(strongest.name),
+      copy: `The coach noticed this in ${strongest.count} ${strongest.count === 1 ? "moment" : "moments"}. Bring it into your next answer.`,
+    }
+    : {
+      value: "Your first signal",
+      copy: "A clear, confident reply or a helpful follow-up question will show up here.",
+    };
+  const focus = recurringError
+    ? {
+      value: prettyProgressSignal(recurringError.name),
+      copy: `TalkMate has seen this ${recurringError.count} ${recurringError.count === 1 ? "time" : "times"} in coach notes or saved corrections. ${progressSignalMeta[recurringError.name]?.action || "Try it in three short replies before your next scene."}`,
+      action: progressSignalMeta[recurringError.name]?.action || "Try it in three short replies before your next scene.",
+    }
+    : {
+      value: "Choose one focused drill",
+      copy: "Complete a conversation and TalkMate will turn a correction into a practical next step.",
+      action: "Choose a real-life scene and say your first sentence out loud.",
+    };
+  const nextStep = recurringError
+    ? `Next: ${focus.action}`
+    : trend.direction === "reset"
+      ? "Next: revisit one saved correction, then retry a familiar scene."
+      : progress.completed.length
+        ? "Next: pick a new scene and add one longer, more specific answer."
+        : "Choose a real-life scene and say your first sentence out loud.";
+  return { trend, strength, focus, nextStep };
+}
+
+function renderProgressPulse(progress) {
+  const pulse = buildProgressPulse(progress);
+  if (!els.pulseTrend || !els.pulseTrendCopy || !els.pulseStrength || !els.pulseStrengthCopy || !els.pulseFocus || !els.pulseFocusCopy) return pulse.nextStep;
+  els.pulseTrend.textContent = pulse.trend.value;
+  els.pulseTrendCopy.textContent = pulse.trend.copy;
+  if (els.pulseTrendCard) els.pulseTrendCard.dataset.trend = pulse.trend.direction;
+  els.pulseStrength.textContent = pulse.strength.value;
+  els.pulseStrengthCopy.textContent = pulse.strength.copy;
+  els.pulseFocus.textContent = pulse.focus.value;
+  els.pulseFocusCopy.textContent = pulse.focus.copy;
+  return pulse.nextStep;
+}
+
 function updateProgressUI() {
   const progress = getProgress();
   const momentum = ensureMomentum(progress);
@@ -653,9 +807,7 @@ function updateProgressUI() {
     ? (progress.scores.reduce((sum, item) => sum + item, 0) / progress.scores.length).toFixed(1)
     : "--";
   els.statScore.textContent = average;
-  if (progress.completed.length) {
-    els.nextStep.textContent = "Nice consistency. Pick a new scene and try one longer, more specific answer.";
-  }
+  els.nextStep.textContent = renderProgressPulse(progress);
   const level = levelFromXp(momentum.xp);
   const currentXp = xpForCurrentLevel(momentum.xp);
   const latestBadge = badges.find((badge) => momentum.badges.includes(badge.id));
