@@ -44,7 +44,7 @@ GEMINI_MODEL=gemini-2.5-flash
   natural variations, and one-click copying.
 - A Context Lab with Vietnamese prompts, offline sentence correction, and automatic
   saving of corrected attempts to the Personal Error Notebook.
-- Browser speech recognition for speaking replies where supported.
+- A hands-free voice role-play: the partner speaks, the app opens the microphone, and a spoken reply is sent when the learner pauses.
 - Text-to-speech playback for partner replies.
 - Speech clarity check after a microphone reply, including words to rehearse and slow/normal playback.
 - Local progress, daily streak, completed scenes, and average score.
@@ -59,6 +59,8 @@ GEMINI_MODEL=gemini-2.5-flash
 ## Pronunciation note
 
 The pronunciation feature uses the browser's English speech recognition confidence as a transparent clarity estimate. It is useful for practice and targeted repetition, but it is not a replacement for a dedicated phoneme-level accent assessment service.
+
+Hands-free voice role-play uses the same browser capability and requires microphone permission. Chrome or Edge provide the most reliable support; if it is unavailable, learners can still use the normal Speak button or type each reply.
 
 ## Accounts and sync
 

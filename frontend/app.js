@@ -13,6 +13,12 @@ const state = {
   lastPartnerReply: "",
   completed: false,
   recognition: null,
+  voiceMode: false,
+  voiceRecognition: null,
+  voiceListening: false,
+  voiceSpeaking: false,
+  voiceSending: false,
+  speechSequence: 0,
   englishOnly: false,
   pronunciationSample: "",
   reviewIndex: 0,
@@ -138,6 +144,10 @@ const els = {
   input: $("#input"),
   composer: $("#composer"),
   send: $("#btn-send"),
+  voiceSession: $("#voice-session"),
+  voiceStatus: $("#voice-status"),
+  voiceStart: $("#btn-voice-mode"),
+  voiceStop: $("#btn-stop-voice"),
   coachBox: $("#coach-box"),
   feedback: $("#feedback"),
   guardReason: $("#guard-reason"),
@@ -585,6 +595,7 @@ function iconText(icon) {
 
 function showView(view) {
   if (view !== "challenge" && state.challengeRunning) finishChallenge(false);
+  if (view !== "practice" && state.voiceMode) stopVoiceMode();
   els.home.classList.toggle("hidden", view !== "home");
   els.practice.classList.toggle("hidden", view !== "practice");
   els.progress.classList.toggle("hidden", view !== "progress");
@@ -770,6 +781,7 @@ function getActiveLevel() {
 async function startScenario(index) {
   const level = getActiveLevel();
   if (!level) return;
+  stopVoiceMode();
   const response = await fetch("/api/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -955,8 +967,169 @@ function renderPractice(opening) {
   els.input.placeholder = `Try: ${state.scenario.starter}`;
   els.sessionLanguage.classList.toggle("hidden", !state.englishOnly);
   renderConversationFlow();
+  renderVoiceSession();
   updateTurnCounter();
   addMessage("partner", opening);
+}
+
+function renderVoiceSession(message = "") {
+  if (!els.voiceSession) return;
+  const active = state.voiceMode;
+  const defaultStatus = active
+    ? state.voiceSpeaking
+      ? "Your partner is speaking. I will listen when they finish."
+      : state.voiceSending
+        ? "Sending your reply to your partner..."
+        : state.voiceListening
+          ? "Listening. Say one complete English reply, then pause."
+          : "Voice role-play is ready. Tap Listen again when you are ready."
+    : "Hear your partner, then speak. Your reply sends when you pause.";
+
+  els.voiceSession.classList.toggle("is-active", active);
+  els.voiceStatus.textContent = message || defaultStatus;
+  els.voiceStart.textContent = active
+    ? state.voiceListening
+      ? "Listening..."
+      : state.voiceSpeaking || state.voiceSending
+        ? "One moment..."
+        : "Listen again"
+    : "Start hands-free";
+  els.voiceStart.setAttribute("aria-pressed", String(active));
+  els.voiceStart.disabled = state.completed || state.voiceListening || state.voiceSpeaking || state.voiceSending;
+  els.voiceStop.classList.toggle("hidden", !active);
+}
+
+function recognitionConstructor() {
+  return window.SpeechRecognition || window.webkitSpeechRecognition;
+}
+
+function stopVoiceListening() {
+  const recognition = state.voiceRecognition;
+  state.voiceRecognition = null;
+  state.voiceListening = false;
+  if (!recognition) return;
+  recognition.onresult = null;
+  recognition.onerror = null;
+  recognition.onend = null;
+  try {
+    recognition.stop();
+  } catch {
+    // The browser may have already stopped the recognizer.
+  }
+}
+
+function stopVoiceMode(message = "Voice role-play is off. You can still type or use Speak.") {
+  const wasActive = state.voiceMode || state.voiceListening || state.voiceSpeaking;
+  state.voiceMode = false;
+  state.voiceSpeaking = false;
+  state.voiceSending = false;
+  stopVoiceListening();
+  state.speechSequence += 1;
+  window.speechSynthesis?.cancel();
+  if (wasActive) renderVoiceSession(message);
+}
+
+function startVoiceMode() {
+  if (state.completed) return;
+  const Recognition = recognitionConstructor();
+  if (!Recognition) {
+    renderVoiceSession("Voice role-play needs Chrome or Edge with microphone access. You can still type your reply.");
+    return;
+  }
+  if (state.voiceMode) {
+    startVoiceListening();
+    return;
+  }
+  if (state.recognition) state.recognition.stop();
+  state.voiceMode = true;
+  state.voiceSpeaking = false;
+  state.voiceSending = false;
+  renderVoiceSession("Your partner is speaking. I will listen when they finish.");
+  speakPartnerReply(state.lastPartnerReply);
+}
+
+function startVoiceListening() {
+  const Recognition = recognitionConstructor();
+  if (!Recognition || !state.voiceMode || state.completed || state.voiceListening || state.voiceSpeaking || state.voiceSending) return;
+
+  let transcript = "";
+  let confidence = null;
+  let recognitionError = "";
+  const recognition = new Recognition();
+  recognition.lang = "en-US";
+  recognition.interimResults = true;
+  recognition.continuous = false;
+  state.voiceRecognition = recognition;
+  state.voiceListening = true;
+  renderVoiceSession();
+
+  recognition.onresult = (event) => {
+    const results = Array.from(event.results);
+    transcript = results.map((result) => result[0].transcript).join(" ").trim();
+    const finalResults = results.filter((result) => result.isFinal);
+    const source = finalResults.length ? finalResults : results;
+    const latest = source[source.length - 1];
+    confidence = latest?.[0]?.confidence ?? confidence;
+    if (transcript) {
+      els.input.value = transcript;
+      renderVoiceSession(`I heard: "${transcript}"`);
+    }
+  };
+  recognition.onerror = (event) => {
+    recognitionError = event.error || "unknown";
+  };
+  recognition.onend = () => {
+    if (state.voiceRecognition !== recognition) return;
+    state.voiceRecognition = null;
+    state.voiceListening = false;
+    if (!state.voiceMode || state.completed) {
+      renderVoiceSession();
+      return;
+    }
+    if (recognitionError) {
+      const message = recognitionError === "not-allowed" || recognitionError === "service-not-allowed"
+        ? "Microphone access is blocked. Allow it in your browser, then try again."
+        : "I could not hear you clearly. Tap Listen again and try one complete sentence.";
+      renderVoiceSession(message);
+      return;
+    }
+    if (!transcript) {
+      renderVoiceSession("I did not catch that. Tap Listen again and speak one complete sentence.");
+      return;
+    }
+    state.pronunciationSample = transcript;
+    checkPronunciation(transcript, confidence);
+    state.voiceSending = true;
+    renderVoiceSession("Sending your reply to your partner...");
+    void sendMessage();
+  };
+  try {
+    recognition.start();
+  } catch {
+    state.voiceRecognition = null;
+    state.voiceListening = false;
+    renderVoiceSession("The microphone is busy. Wait a moment, then tap Listen again.");
+  }
+}
+
+function speakPartnerReply(text) {
+  if (!state.voiceMode) {
+    speak(text);
+    return;
+  }
+  stopVoiceListening();
+  state.voiceSpeaking = true;
+  renderVoiceSession();
+  speakAtRate(text, 0.92, () => {
+    state.voiceSpeaking = false;
+    if (!state.voiceMode) return;
+    if (state.completed) {
+      state.voiceMode = false;
+      renderVoiceSession("Scene complete. Pick another moment when you are ready.");
+      return;
+    }
+    startVoiceListening();
+  });
 }
 
 function renderConversationFlow(conversation = null) {
@@ -1367,6 +1540,11 @@ function checkReviewAnswer() {
 async function sendMessage() {
   const message = els.input.value.trim();
   if (!message || state.completed) return;
+  if (state.voiceMode) {
+    stopVoiceListening();
+    state.voiceSending = true;
+    renderVoiceSession("Sending your reply to your partner...");
+  }
   state.history.push({ role: "user", text: message });
   addMessage("user", message);
   els.input.value = "";
@@ -1399,7 +1577,7 @@ async function sendMessage() {
       state.lastPartnerReply = data.reply;
       addMessage("partner", data.reply);
       renderCoaching(data);
-      speak(data.reply);
+      speakPartnerReply(data.reply);
       updateTurnCounter();
       return;
     }
@@ -1412,19 +1590,25 @@ async function sendMessage() {
     saveReviewItem(message, data);
     updateLearningMemory(message, data);
     updateTurnCounter();
-    speak(data.reply);
     if (data.done) {
       state.completed = true;
       els.finished.classList.remove("hidden");
       els.composer.classList.add("hidden");
       recordSession(data);
     }
+    speakPartnerReply(data.reply);
   } catch (error) {
     typing.remove();
     addMessage("partner", "I am having a little trouble right now. Please try your reply again.");
+    if (state.voiceMode) {
+      state.voiceSending = false;
+      renderVoiceSession("I could not send that. Tap Listen again, or type your reply.");
+    }
   } finally {
     els.send.disabled = false;
-    els.input.focus();
+    state.voiceSending = false;
+    if (state.voiceMode && !state.voiceSpeaking && !state.voiceListening) renderVoiceSession();
+    if (!state.voiceMode) els.input.focus();
   }
 }
 
@@ -1445,20 +1629,44 @@ function speak(text) {
   speakAtRate(text, 0.92);
 }
 
-function speakAtRate(text, rate) {
-  if (!("speechSynthesis" in window) || !text) return;
+function speakAtRate(text, rate, onEnd) {
+  if (!("speechSynthesis" in window) || !text) {
+    onEnd?.();
+    return false;
+  }
+  const speechId = ++state.speechSequence;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "en-US";
   utterance.rate = rate;
   const englishVoice = window.speechSynthesis.getVoices().find((voice) => voice.lang.startsWith("en"));
   if (englishVoice) utterance.voice = englishVoice;
-  window.speechSynthesis.speak(utterance);
+  const finish = () => {
+    if (state.speechSequence === speechId) onEnd?.();
+  };
+  utterance.onend = finish;
+  utterance.onerror = finish;
+  try {
+    window.speechSynthesis.speak(utterance);
+    return true;
+  } catch {
+    finish();
+    return false;
+  }
 }
 
 function toggleListening() {
   const mic = $("#btn-mic");
-  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (state.voiceMode) {
+    if (state.voiceListening) {
+      stopVoiceListening();
+      renderVoiceSession("Listening paused. Tap Listen again when you are ready.");
+    } else {
+      startVoiceListening();
+    }
+    return;
+  }
+  const Recognition = recognitionConstructor();
   if (!Recognition) {
     alert("Trình duyệt này chưa hỗ trợ nhận diện giọng nói. Bạn vẫn có thể gõ câu trả lời.");
     return;
@@ -1534,7 +1742,10 @@ els.authRegisterTab.addEventListener("click", () => setAuthMode("register"));
 els.authForm.addEventListener("submit", submitAuth);
 $("#btn-close-progress").addEventListener("click", () => showView("home"));
 $("#btn-start-from-progress").addEventListener("click", () => showView("home"));
-$("#btn-sound").addEventListener("click", () => speak(state.lastPartnerReply));
+$("#btn-sound").addEventListener("click", () => {
+  if (state.voiceMode) speakPartnerReply(state.lastPartnerReply);
+  else speak(state.lastPartnerReply);
+});
 $("#btn-use-sentence").addEventListener("click", () => {
   const sentence = buildSentence();
   if (sentence && !sentence.includes("[")) {
@@ -1545,6 +1756,8 @@ $("#btn-use-sentence").addEventListener("click", () => {
 $("#btn-slow").addEventListener("click", () => speakAtRate(state.pronunciationSample, 0.72));
 $("#btn-normal").addEventListener("click", () => speakAtRate(state.pronunciationSample, 0.92));
 $("#btn-mic").addEventListener("click", toggleListening);
+els.voiceStart.addEventListener("click", startVoiceMode);
+els.voiceStop.addEventListener("click", () => stopVoiceMode());
 els.levelSelect.addEventListener("change", () => updateProfile((profile) => { profile.proficiency = els.levelSelect.value; }));
 els.goalSelect.addEventListener("change", () => updateProfile((profile) => {
   const target = els.goalSelect.value;

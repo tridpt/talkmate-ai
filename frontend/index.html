@@ -88,6 +88,10 @@
         </aside>
         <div class="conversation-panel">
           <div class="conversation-header"><div class="partner-title"><span class="partner-orb"></span><span>Conversation</span></div><button id="btn-sound" class="round-button" title="Read the latest reply aloud" aria-label="Read the latest reply aloud">sound</button></div>
+          <section id="voice-session" class="voice-session" aria-label="Hands-free voice role-play">
+            <div class="voice-session-copy"><p class="eyebrow">VOICE ROLE-PLAY</p><p id="voice-status" class="voice-status" aria-live="polite">Hear your partner, then speak. Your reply sends when you pause.</p></div>
+            <div class="voice-session-actions"><button id="btn-voice-mode" class="voice-session-button" type="button" aria-pressed="false" aria-controls="chat">Start hands-free <span aria-hidden="true">mic</span></button><button id="btn-stop-voice" class="voice-stop-button hidden" type="button">End</button></div>
+          </section>
           <div id="chat" class="chat" aria-live="polite"></div>
           <div id="coach-box" class="coach-box hidden">
             <div class="coach-head"><span class="coach-star">*</span><span>COACH'S NOTE</span><span id="overall-score" class="overall-score"></span></div>
