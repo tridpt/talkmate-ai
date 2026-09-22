@@ -19,7 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import config
 import database
 import scenarios
-from coach import Coach, SCORE_LABELS, pronunciation_check, review_sentence_exercise
+from coach import Coach, SCORE_LABELS, evaluate_placement, placement_questions, pronunciation_check, review_sentence_exercise
 
 # Sửa encoding console trên Windows để in được tiếng Việt.
 try:
@@ -183,6 +183,24 @@ def api_sentence_exercise():
         return jsonify({"error": "Bạn chưa viết câu trả lời."}), 400
     result = review_sentence_exercise(message, exercise, bool(data.get("english_only", False)))
     return jsonify(result)
+
+
+@app.route("/api/placement", methods=["GET", "POST"])
+def api_placement():
+    if request.method == "GET":
+        return jsonify({"questions": placement_questions()})
+
+    data = request_data()
+    if data is None:
+        return jsonify({"error": "JSON object expected."}), 400
+    answers = data.get("answers")
+    question_count = len(placement_questions())
+    if not isinstance(answers, list) or len(answers) != question_count:
+        return jsonify({"error": f"Please answer all {question_count} placement questions."}), 400
+    cleaned_answers = [text_value(answer) for answer in answers]
+    if any(not answer for answer in cleaned_answers):
+        return jsonify({"error": "Please write an answer for every placement question."}), 400
+    return jsonify(evaluate_placement(cleaned_answers))
 
 
 @app.route("/api/start", methods=["POST"])

@@ -36,6 +36,7 @@ GEMINI_MODEL=gemini-2.5-flash
 ## What is included
 
 - Twelve role-play scenes across everyday and work contexts.
+- A three-question starting-level check that suggests a practical A1-B2 path; it is a transparent practice guide, not a formal CEFR certificate.
 - A focused coach note after each response, including a natural rewrite when needed.
 - Grammar, word-choice, and sentence-pattern notes after each response.
 - A situation-specific Sentence Builder with reusable frames and fill-in slots.

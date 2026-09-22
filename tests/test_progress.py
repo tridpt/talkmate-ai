@@ -59,6 +59,25 @@ class ReviewProgressTests(unittest.TestCase):
         self.assertEqual(item["correct"], 2)
         self.assertEqual(merged["review"]["dailyCompleted"]["2026-09-02"], 3)
 
+    def test_placement_result_survives_progress_normalization(self):
+        progress = database.normalize_progress({
+            "profile": {
+                "proficiency": "B1",
+                "placement": {
+                    "level": "B1",
+                    "overall": 7.4,
+                    "answersScored": 3,
+                    "completedAt": "2026-09-22T12:00:00Z",
+                    "focus": "Ưu tiên cấu trúc câu trong các buổi luyện đầu tiên.",
+                },
+            },
+        })
+
+        placement = progress["profile"]["placement"]
+        self.assertEqual(placement["level"], "B1")
+        self.assertEqual(placement["answersScored"], 3)
+        self.assertEqual(placement["overall"], 7.4)
+
 
 if __name__ == "__main__":
     unittest.main()

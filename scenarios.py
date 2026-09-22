@@ -677,6 +677,39 @@ SENTENCE_EXERCISES = [
 ]
 
 
+# This is a starting-point check, not a formal CEFR exam. The prompts move from
+# a familiar introduction to a short opinion so learners can show useful range.
+PLACEMENT_EXERCISES = [
+    {
+        "id": "placement-intro",
+        "level": "A1-A2",
+        "prompt": "Bạn gặp một đồng nghiệp mới. Hãy giới thiệu bản thân và nói một điều bạn thích làm.",
+        "situation": "Viết một hoặc hai câu tiếng Anh tự nhiên.",
+        "focus": "Giới thiệu bản thân",
+        "hint_en": "Hi, I'm ... I enjoy ...",
+        "topic_terms": ["i'm", "i am", "my name", "work", "study", "like", "enjoy", "from", "live"],
+    },
+    {
+        "id": "placement-cafe",
+        "level": "A2",
+        "prompt": "Bạn đang ở quán cà phê. Hãy gọi một đồ uống và thêm một chi tiết bạn muốn.",
+        "situation": "Yêu cầu lịch sự bằng một câu tiếng Anh đầy đủ.",
+        "focus": "Yêu cầu lịch sự",
+        "hint_en": "I'd like ... , please.",
+        "topic_terms": ["coffee", "latte", "tea", "drink", "iced", "hot", "milk", "to go", "for here", "please"],
+    },
+    {
+        "id": "placement-opinion",
+        "level": "B1",
+        "prompt": "Nhóm bạn sắp ra mắt một sản phẩm. Hãy đề xuất một cách làm và đưa ra lý do.",
+        "situation": "Nêu ý kiến rõ ràng, sau đó giải thích ngắn gọn.",
+        "focus": "Nêu ý kiến và lý do",
+        "hint_en": "I think we should ... because ...",
+        "topic_terms": ["think", "suggest", "should", "launch", "plan", "test", "team", "because", "users", "product"],
+    },
+]
+
+
 def sentence_builder_for(scenario: dict):
     """Return a reusable sentence frame for the selected real-life situation."""
     return SENTENCE_BUILDERS.get(scenario.get("icon"), SENTENCE_BUILDERS["home"])
@@ -699,6 +732,11 @@ def sentence_library():
 def sentence_exercises():
     """Return contextual prompts for offline sentence-writing practice."""
     return SENTENCE_EXERCISES
+
+
+def placement_exercises():
+    """Return the short, transparent prompts used for a starting-level check."""
+    return PLACEMENT_EXERCISES
 
 
 def level_list():

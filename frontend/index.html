@@ -41,6 +41,11 @@
         <label class="english-toggle"><input type="checkbox" id="english-only" /><span class="toggle-track"><span></span></span><span>English-only mode</span></label>
       </div>
 
+      <section id="placement-card" class="placement-card reveal delay-2">
+        <div><p class="eyebrow">YOUR STARTING POINT</p><h2>Not sure where to begin?</h2><p id="placement-summary">Answer three tiny real-life prompts. TalkMate will suggest a practical level to start from.</p></div>
+        <button id="btn-placement" class="placement-button" type="button">Take the 3-minute check <span aria-hidden="true">-></span></button>
+      </section>
+
       <div class="momentum-grid reveal delay-2">
         <article class="momentum-card">
           <div class="momentum-top"><p class="eyebrow">YOUR MOMENTUM</p><span id="badge-preview" class="badge-preview">FIRST HELLO</span></div>
@@ -145,6 +150,9 @@
       </div>
     </section>
   </main>
+  <div id="placement-modal" class="auth-modal hidden" role="dialog" aria-modal="true" aria-labelledby="placement-title">
+    <div class="auth-card placement-modal-card"><button id="btn-close-placement" class="auth-close" aria-label="Close level check">x</button><p class="eyebrow">3-MINUTE LEVEL CHECK</p><h2 id="placement-title">Find your starting point.</h2><p class="auth-copy">Viết tự nhiên như khi bạn đang nói. Đây là gợi ý để bắt đầu, không phải bài thi chứng chỉ.</p><div id="placement-questions"><div class="placement-progress-head"><span id="placement-step">1 / 3</span><span id="placement-focus">INTRODUCE YOURSELF</span></div><div class="placement-progress"><span id="placement-progress"></span></div><p id="placement-prompt" class="placement-prompt"></p><p id="placement-situation" class="placement-situation"></p><label class="sr-only" for="placement-input">Your English answer</label><textarea id="placement-input" rows="4" maxlength="600" placeholder="Write your English answer..."></textarea><p id="placement-error" class="auth-error"></p><div class="placement-actions"><button id="btn-placement-back" class="voice-button" type="button">Back</button><button id="btn-placement-next" class="primary-button" type="button">Next <span aria-hidden="true">-></span></button></div></div><div id="placement-result" class="placement-result hidden"><span>YOUR STARTING POINT</span><strong id="placement-level">A2</strong><p id="placement-result-summary"></p><p id="placement-result-focus"></p><button id="btn-placement-finish" class="primary-button" type="button">Start my path <span aria-hidden="true">-></span></button></div></div>
+  </div>
   <div id="auth-modal" class="auth-modal hidden" role="dialog" aria-modal="true" aria-labelledby="auth-title">
     <div class="auth-card"><button id="btn-close-auth" class="auth-close" aria-label="Close sign in">x</button><p class="eyebrow">TALKMATE ACCOUNT</p><h2 id="auth-title">Keep your progress with you.</h2><p class="auth-copy">Sign in to sync scenes, XP, streaks, and your weekly chart on any device using this server.</p><div class="auth-tabs"><button id="auth-login-tab" class="auth-tab active">Sign in</button><button id="auth-register-tab" class="auth-tab">Create account</button></div><form id="auth-form"><label id="name-field" class="auth-field hidden">Name<input id="auth-name" autocomplete="name" /></label><label class="auth-field">Email<input id="auth-email" type="email" autocomplete="email" required /></label><label class="auth-field">Password<input id="auth-password" type="password" minlength="6" autocomplete="current-password" required /></label><p id="auth-error" class="auth-error"></p><button class="primary-button auth-submit" type="submit">Continue <span aria-hidden="true">-></span></button></form><p class="auth-footnote">Passwords are stored as a secure hash; your practice text is never shown publicly.</p></div>
   </div>

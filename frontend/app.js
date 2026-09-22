@@ -5,6 +5,10 @@ const state = {
   sentenceExercises: [],
   exerciseIndex: 0,
   exerciseBusy: false,
+  placementQuestions: [],
+  placementAnswers: [],
+  placementIndex: 0,
+  placementBusy: false,
   activeLevelId: "everyday",
   level: null,
   scenario: null,
@@ -122,6 +126,25 @@ const els = {
   exerciseGrammar: $("#exercise-grammar"),
   exerciseSentence: $("#exercise-sentence"),
   exerciseSaved: $("#exercise-saved"),
+  placementSummary: $("#placement-summary"),
+  placementButton: $("#btn-placement"),
+  placementModal: $("#placement-modal"),
+  placementQuestions: $("#placement-questions"),
+  placementStep: $("#placement-step"),
+  placementFocus: $("#placement-focus"),
+  placementProgress: $("#placement-progress"),
+  placementPrompt: $("#placement-prompt"),
+  placementSituation: $("#placement-situation"),
+  placementInput: $("#placement-input"),
+  placementError: $("#placement-error"),
+  placementBack: $("#btn-placement-back"),
+  placementNext: $("#btn-placement-next"),
+  placementResult: $("#placement-result"),
+  placementLevel: $("#placement-level"),
+  placementResultSummary: $("#placement-result-summary"),
+  placementResultFocus: $("#placement-result-focus"),
+  placementClose: $("#btn-close-placement"),
+  placementFinish: $("#btn-placement-finish"),
   badge: $("#ai-badge"),
   lessonCount: $("#lesson-count"),
   title: $("#sc-title"),
@@ -428,6 +451,150 @@ function renderProfileUI() {
   els.focusSummary.textContent = `${profile.proficiency} - ${targetNames[target]}`;
   if (legacyGoal && !profile.target) updateProfile((next) => { next.target = "travel"; next.goal = legacyGoal; });
   els.englishOnly.checked = profile.englishOnly;
+  renderPlacementCard();
+}
+
+function renderPlacementCard() {
+  if (!els.placementSummary) return;
+  const placement = getProgress().profile?.placement;
+  if (placement?.level) {
+    els.placementSummary.textContent = `${placement.level} is your current starting point. Retake the short check any time your confidence changes.`;
+    els.placementButton.textContent = "Retake the 3-minute check";
+    return;
+  }
+  els.placementSummary.textContent = "Answer three tiny real-life prompts. TalkMate will suggest a practical level to start from.";
+  els.placementButton.textContent = "Take the 3-minute check";
+}
+
+async function loadPlacementQuestions() {
+  if (state.placementQuestions.length) return state.placementQuestions;
+  const response = await fetch("/api/placement");
+  const data = await response.json();
+  if (!response.ok || !Array.isArray(data.questions) || !data.questions.length) {
+    throw new Error(data.error || "Could not load the level check.");
+  }
+  state.placementQuestions = data.questions;
+  return state.placementQuestions;
+}
+
+function closePlacement() {
+  els.placementModal.classList.add("hidden");
+  els.placementError.textContent = "";
+}
+
+function renderPlacementQuestion() {
+  const questions = state.placementQuestions;
+  const index = state.placementIndex;
+  const question = questions[index];
+  if (!question) return;
+  els.placementStep.textContent = `${index + 1} / ${questions.length}`;
+  els.placementFocus.textContent = (question.focus || "YOUR ENGLISH").toUpperCase();
+  els.placementProgress.style.width = `${((index + 1) / questions.length) * 100}%`;
+  els.placementPrompt.textContent = question.prompt || "";
+  els.placementSituation.textContent = question.situation || "";
+  els.placementInput.value = state.placementAnswers[index] || "";
+  els.placementError.textContent = "";
+  els.placementBack.disabled = index === 0 || state.placementBusy;
+  els.placementNext.disabled = state.placementBusy;
+  els.placementNext.textContent = index === questions.length - 1 ? "See my starting point" : "Next";
+}
+
+function savePlacementAnswer(requireAnswer = true) {
+  const answer = els.placementInput.value.trim();
+  if (requireAnswer && !answer) {
+    els.placementError.textContent = "Write one English answer before you continue.";
+    els.placementInput.focus();
+    return false;
+  }
+  state.placementAnswers[state.placementIndex] = answer;
+  return true;
+}
+
+async function openPlacement() {
+  if (state.placementBusy) return;
+  state.placementBusy = true;
+  els.placementButton.disabled = true;
+  try {
+    const questions = await loadPlacementQuestions();
+    state.placementAnswers = new Array(questions.length).fill("");
+    state.placementIndex = 0;
+    els.placementResult.classList.add("hidden");
+    els.placementQuestions.classList.remove("hidden");
+    els.placementModal.classList.remove("hidden");
+    renderPlacementQuestion();
+    els.placementInput.focus();
+  } catch (error) {
+    els.placementSummary.textContent = error.message || "The level check is unavailable right now.";
+  } finally {
+    state.placementBusy = false;
+    els.placementButton.disabled = false;
+    if (!els.placementModal.classList.contains("hidden")) renderPlacementQuestion();
+  }
+}
+
+async function advancePlacement() {
+  if (state.placementBusy || !savePlacementAnswer()) return;
+  if (state.placementIndex < state.placementQuestions.length - 1) {
+    state.placementIndex += 1;
+    renderPlacementQuestion();
+    els.placementInput.focus();
+    return;
+  }
+
+  state.placementBusy = true;
+  renderPlacementQuestion();
+  els.placementNext.textContent = "Checking...";
+  try {
+    const response = await fetch("/api/placement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answers: state.placementAnswers }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not score the level check.");
+    const recommendation = data.recommendation || {};
+    updateProfile((profile) => {
+      profile.proficiency = recommendation.level || "A2";
+      profile.placement = {
+        level: recommendation.level || "A2",
+        overall: data.overall,
+        answersScored: data.answers_scored,
+        completedAt: new Date().toISOString(),
+        focus: recommendation.focus || "",
+      };
+    });
+    const profile = getLearnerProfile();
+    state.activeLevelId = ["interview", "work"].includes(profile.target) ? "work" : "everyday";
+    renderLevels();
+    renderScenarios();
+    els.placementQuestions.classList.add("hidden");
+    els.placementResult.classList.remove("hidden");
+    els.placementLevel.textContent = recommendation.level || "A2";
+    els.placementResultSummary.textContent = recommendation.summary || "This is a useful place to start your practice.";
+    els.placementResultFocus.textContent = recommendation.focus || "Keep your replies clear, complete, and useful.";
+  } catch (error) {
+    els.placementError.textContent = error.message || "The level check could not be completed.";
+  } finally {
+    state.placementBusy = false;
+    if (!els.placementQuestions.classList.contains("hidden")) {
+      els.placementBack.disabled = state.placementIndex === 0;
+      els.placementNext.disabled = false;
+      els.placementNext.textContent = "See my starting point";
+    }
+  }
+}
+
+function previousPlacement() {
+  if (state.placementBusy || state.placementIndex === 0) return;
+  savePlacementAnswer(false);
+  state.placementIndex -= 1;
+  renderPlacementQuestion();
+  els.placementInput.focus();
+}
+
+function finishPlacement() {
+  closePlacement();
+  document.querySelector("#scenario-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function difficultyForLevel(level) {
@@ -1740,6 +1907,17 @@ $("#btn-close-history").addEventListener("click", closeSessionHistory);
 els.authLoginTab.addEventListener("click", () => setAuthMode("login"));
 els.authRegisterTab.addEventListener("click", () => setAuthMode("register"));
 els.authForm.addEventListener("submit", submitAuth);
+els.placementButton.addEventListener("click", openPlacement);
+els.placementClose.addEventListener("click", closePlacement);
+els.placementBack.addEventListener("click", previousPlacement);
+els.placementNext.addEventListener("click", advancePlacement);
+els.placementFinish.addEventListener("click", finishPlacement);
+els.placementInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    advancePlacement();
+  }
+});
 $("#btn-close-progress").addEventListener("click", () => showView("home"));
 $("#btn-start-from-progress").addEventListener("click", () => showView("home"));
 $("#btn-sound").addEventListener("click", () => {

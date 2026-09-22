@@ -140,6 +140,21 @@ def normalize_progress(payload):
             except (TypeError, ValueError):
                 continue
         return result
+    raw_placement = raw_profile.get("placement") if isinstance(raw_profile.get("placement"), dict) else {}
+    placement_level = str(raw_placement.get("level") or "").strip()
+    placement = None
+    if placement_level in {"A1", "A2", "B1", "B2"}:
+        try:
+            answers_scored = max(0, min(3, int(raw_placement.get("answersScored", 0))))
+        except (TypeError, ValueError):
+            answers_scored = 0
+        placement = {
+            "level": placement_level,
+            "overall": _score(raw_placement.get("overall")),
+            "answersScored": answers_scored,
+            "completedAt": str(raw_placement.get("completedAt") or "")[:40],
+            "focus": str(raw_placement.get("focus") or "")[:180],
+        }
     profile = {
         "goal": str(raw_profile.get("goal") or "")[:180],
         "proficiency": str(raw_profile.get("proficiency") or "A2")[:10],
@@ -147,6 +162,7 @@ def normalize_progress(payload):
         "englishOnly": bool(raw_profile.get("englishOnly", False)),
         "errors": counters("errors"),
         "strengths": counters("strengths"),
+        "placement": placement,
     }
 
     review_items = []

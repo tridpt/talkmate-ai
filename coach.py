@@ -822,3 +822,84 @@ def review_sentence_exercise(message: str, exercise: dict, english_only: bool = 
     result["exercise"] = public_exercise
     result["saved_to_notebook"] = bool(improved and improved.strip().lower() != text.lower())
     return result
+
+
+def placement_questions() -> list[dict]:
+    """Expose only the prompt metadata needed by the browser placement check."""
+    return [
+        {
+            key: str(exercise.get(key) or "").strip()
+            for key in ("id", "level", "prompt", "situation", "focus", "hint_en")
+        }
+        for exercise in scenarios.placement_exercises()
+    ]
+
+
+def evaluate_placement(answers: list[str]) -> dict:
+    """Give a conservative starting-level suggestion from three short replies.
+
+    The result deliberately tops out at B2: a tiny writing check cannot prove
+    advanced fluency, but it can help a learner avoid an unhelpful starting path.
+    """
+    exercises = scenarios.placement_exercises()
+    results = [
+        review_sentence_exercise(answer, exercise, english_only=True)
+        for answer, exercise in zip(answers, exercises)
+    ]
+    earned_scores = [result["overall"] for result in results if result["scored"] and result["overall"] is not None]
+    total = len(exercises)
+    overall = round(sum(score or 0 for score in (result["overall"] for result in results)) / total, 1) if total else 0.0
+    valid_count = len(earned_scores)
+
+    if valid_count == 0 or overall < 3.5:
+        level = "A1"
+    elif overall < 6.5:
+        level = "A2"
+    elif overall < 8.2:
+        level = "B1"
+    else:
+        level = "B2"
+
+    dimensions = {
+        key: round(
+            sum((result["scores"].get(key) or 0) for result in results) / total,
+            1,
+        )
+        for key in SCORE_KEYS
+    } if total else {}
+    focus_key = min(dimensions, key=dimensions.get) if dimensions else "sentence"
+    focus_labels = {
+        "relevance": "độ đúng ngữ cảnh",
+        "clarity": "độ rõ ràng",
+        "grammar": "ngữ pháp",
+        "word_choice": "cách chọn từ",
+        "sentence": "cấu trúc câu",
+        "naturalness": "độ tự nhiên",
+        "confidence": "sự tự tin",
+    }
+    focus_label = focus_labels[focus_key]
+    if valid_count == 0:
+        summary = "Mình chưa có đủ câu tiếng Anh đúng tình huống để chấm, nên hãy bắt đầu với nền tảng A1 và luyện từng mẫu câu ngắn."
+    else:
+        summary = f"Bạn trả lời rõ {valid_count}/{total} tình huống. {level} là điểm bắt đầu thực tế để luyện đều và tăng độ tự nhiên."
+
+    return {
+        "answers_scored": valid_count,
+        "total_questions": total,
+        "overall": overall,
+        "recommendation": {
+            "level": level,
+            "label": f"{level} - {'First words' if level == 'A1' else 'Everyday speaker' if level == 'A2' else 'Independent' if level == 'B1' else 'Confident'}",
+            "summary": summary,
+            "focus": f"Ưu tiên {focus_label} trong các buổi luyện đầu tiên.",
+        },
+        "results": [
+            {
+                "id": str(exercise.get("id") or ""),
+                "scored": result["scored"],
+                "overall": result["overall"],
+                "guard_reason": result["guard_reason"],
+            }
+            for exercise, result in zip(exercises, results)
+        ],
+    }
