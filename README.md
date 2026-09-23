@@ -50,6 +50,7 @@ GEMINI_MODEL=gemini-2.5-flash
 - Speech clarity check after a microphone reply, including words to rehearse and slow/normal playback.
 - Local progress, daily streak, completed scenes, and average score.
 - A Progress Pulse that turns score trends, recurring strengths, and corrections into one practical next step.
+- A goal-aware next-scene recommendation that opens the matching role-play directly from Progress.
 - Personal learning path: A1-C1 level plus travel, interview, work, or dating goal.
 - Personal Error Notebook groups corrected sentences into articles, prepositions, verb forms,
   word order, and word choice, then creates five quick rewrite drills per day.

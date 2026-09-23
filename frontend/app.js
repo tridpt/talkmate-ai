@@ -108,6 +108,24 @@ const progressSignalMeta = {
   "confident tone": { label: "Confident tone" },
   "keeping a conversation going": { label: "Keeping the conversation going" },
 };
+const targetScenePreferences = {
+  travel: { levelId: "everyday", icons: ["map", "cup", "plate", "phone", "key", "world"], reason: "It keeps your travel English practical in a fresh real-life moment." },
+  interview: { levelId: "work", icons: ["briefcase", "presentation", "handshake", "spark"], reason: "It gives you a focused space to answer interview questions clearly and specifically." },
+  work: { levelId: "work", icons: ["spark", "presentation", "handshake", "briefcase"], reason: "It gives you a useful chance to share an idea and respond naturally at work." },
+  dating: { levelId: "everyday", icons: ["home", "world", "cup", "plate"], reason: "It helps you make a warm, natural connection without sounding rehearsed." },
+};
+const focusSceneIcons = {
+  articles: ["cup", "plate", "key", "doctor"],
+  prepositions: ["map", "key", "phone", "world"],
+  verb_forms: ["home", "doctor", "briefcase", "spark"],
+  word_order: ["map", "phone", "spark", "presentation"],
+  word_choice: ["world", "home", "handshake", "presentation"],
+  "polite requests": ["phone", "plate", "key", "cup"],
+  "verb forms after I": ["home", "briefcase", "world"],
+  "natural adverbs": ["home", "world", "cup"],
+  "modal verbs": ["map", "phone", "key", "plate"],
+  "longer responses": ["home", "world", "briefcase", "presentation"],
+};
 const badges = [
   { id: "first_scene", name: "FIRST HELLO", hint: "Complete one conversation." },
   { id: "five_minutes", name: "FIVE MINUTES", hint: "Speak for five minutes in one day." },
@@ -221,6 +239,9 @@ const els = {
   pulseStrengthCopy: $("#pulse-strength-copy"),
   pulseFocus: $("#pulse-focus"),
   pulseFocusCopy: $("#pulse-focus-copy"),
+  nextScene: $("#next-scene"),
+  nextSceneReason: $("#next-scene-reason"),
+  startFromProgress: $("#btn-start-from-progress"),
   goalSelect: $("#goal-select"),
   focusSummary: $("#focus-summary"),
   englishOnly: $("#english-only"),
@@ -743,6 +764,54 @@ function focusFromReviewItems(items) {
   return topProgressSignal(categoryCounts);
 }
 
+function sceneRecommendationFor(progress) {
+  const profile = progress.profile && typeof progress.profile === "object" ? progress.profile : {};
+  const preference = targetScenePreferences[profile.target] || targetScenePreferences.travel;
+  const focus = topProgressSignal(profile.errors) || focusFromReviewItems(progress.reviewItems);
+  const scenes = state.levels.flatMap((level) => (Array.isArray(level.scenarios) ? level.scenarios : [])
+    .map((scenario, index) => ({ level, scenario, index })));
+  const matchingPath = scenes.filter(({ level }) => level.id === preference.levelId);
+  const pool = matchingPath.length ? matchingPath : scenes;
+  if (!pool.length) return null;
+  const completed = new Set(progress.completed || []);
+  const isComplete = ({ level, index }) => completed.has(`${level.id}-${index}`);
+  const hasUncompleted = pool.some((scene) => !isComplete(scene));
+  const focusIcons = focusSceneIcons[focus?.name] || [];
+  const rank = (icons, icon) => {
+    const index = icons.indexOf(icon);
+    return index === -1 ? icons.length + 1 : index;
+  };
+  // Prefer unfinished scenes on the learner's chosen path, then match their current focus.
+  const [recommended] = [...pool].sort((first, second) => {
+    if (hasUncompleted && isComplete(first) !== isComplete(second)) return isComplete(first) ? 1 : -1;
+    const focusDifference = rank(focusIcons, first.scenario.icon) - rank(focusIcons, second.scenario.icon);
+    if (focusDifference) return focusDifference;
+    const targetDifference = rank(preference.icons, first.scenario.icon) - rank(preference.icons, second.scenario.icon);
+    return targetDifference || first.index - second.index;
+  });
+  const reason = focus
+    ? `This gives you a natural place to practice ${prettyProgressSignal(focus.name).toLowerCase()} in a real conversation.`
+    : hasUncompleted
+      ? preference.reason
+      : "You have completed this path, so revisit it with one fresh detail in every answer.";
+  return { ...recommended, reason };
+}
+
+function renderSceneRecommendation(progress) {
+  const recommendation = sceneRecommendationFor(progress);
+  if (!els.nextScene || !els.nextSceneReason || !els.startFromProgress) return recommendation;
+  if (!recommendation) {
+    els.nextScene.textContent = "Choose a scene that feels useful today";
+    els.nextSceneReason.textContent = "Your scene recommendation will appear when the practice library is ready.";
+    els.startFromProgress.textContent = "Browse practice scenes ->";
+    return null;
+  }
+  els.nextScene.textContent = `${recommendation.scenario.title} - ${recommendation.scenario.duration}`;
+  els.nextSceneReason.textContent = recommendation.reason;
+  els.startFromProgress.textContent = `Practice ${recommendation.scenario.title} ->`;
+  return recommendation;
+}
+
 function buildProgressPulse(progress) {
   const profile = progress.profile && typeof progress.profile === "object" ? progress.profile : {};
   const trend = scoreTrendForPulse(progress);
@@ -808,6 +877,7 @@ function updateProgressUI() {
     : "--";
   els.statScore.textContent = average;
   els.nextStep.textContent = renderProgressPulse(progress);
+  renderSceneRecommendation(progress);
   const level = levelFromXp(momentum.xp);
   const currentXp = xpForCurrentLevel(momentum.xp);
   const latestBadge = badges.find((badge) => momentum.badges.includes(badge.id));
@@ -1120,6 +1190,28 @@ async function startScenario(index) {
   renderPractice(data.opening);
   showView("practice");
   speak(data.opening);
+}
+
+async function startRecommendedScene() {
+  const recommendation = sceneRecommendationFor(getProgress());
+  if (!recommendation) {
+    showView("home");
+    return;
+  }
+  const button = els.startFromProgress;
+  button.disabled = true;
+  button.textContent = "Starting your scene...";
+  state.activeLevelId = recommendation.level.id;
+  renderLevels();
+  renderScenarios();
+  try {
+    await startScenario(recommendation.index);
+  } catch {
+    alert("Không thể bắt đầu tình huống. Hãy kiểm tra máy chủ rồi thử lại.");
+  } finally {
+    button.disabled = false;
+    renderSceneRecommendation(getProgress());
+  }
 }
 
 function renderBadges() {
@@ -2071,7 +2163,7 @@ els.placementInput.addEventListener("keydown", (event) => {
   }
 });
 $("#btn-close-progress").addEventListener("click", () => showView("home"));
-$("#btn-start-from-progress").addEventListener("click", () => showView("home"));
+els.startFromProgress.addEventListener("click", startRecommendedScene);
 $("#btn-sound").addEventListener("click", () => {
   if (state.voiceMode) speakPartnerReply(state.lastPartnerReply);
   else speak(state.lastPartnerReply);
