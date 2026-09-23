@@ -14,6 +14,7 @@ from functools import wraps
 from time import monotonic
 
 from flask import Flask, jsonify, request, send_from_directory, session
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import config
@@ -29,6 +30,10 @@ except Exception:
     pass
 
 app = Flask(__name__, static_folder="frontend", static_url_path="")
+config.validate_runtime_config()
+if config.TRUST_PROXY:
+    # Render terminates TLS at its proxy, so trust that single forwarding hop.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 app.secret_key = config.SECRET_KEY
 app.config.update(
     MAX_CONTENT_LENGTH=config.MAX_REQUEST_BYTES,
@@ -134,6 +139,17 @@ def csrf_required(handler):
 @app.errorhandler(413)
 def request_too_large(_error):
     return jsonify({"error": "Request is too large."}), 413
+
+
+@app.after_request
+def add_security_headers(response):
+    """Apply safe browser defaults without changing normal API responses."""
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if config.IS_PRODUCTION:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+    return response
 
 
 @app.route("/")

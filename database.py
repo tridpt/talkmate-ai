@@ -330,8 +330,10 @@ def merge_progress(existing, incoming):
 
 @contextmanager
 def _connect():
-    connection = sqlite3.connect(config.DATABASE_PATH)
+    connection = sqlite3.connect(config.DATABASE_PATH, timeout=config.DATABASE_TIMEOUT_SECONDS)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute(f"PRAGMA busy_timeout = {config.DATABASE_TIMEOUT_SECONDS * 1000}")
     try:
         yield connection
         connection.commit()
@@ -345,6 +347,8 @@ def _connect():
 def init_db():
     config.DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _connect() as connection:
+        # WAL lets a small public deployment serve reads while a progress write completes.
+        connection.execute("PRAGMA journal_mode = WAL")
         connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS users (

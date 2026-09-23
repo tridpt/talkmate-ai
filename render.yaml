@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: talkmate-ai
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 1 --threads 4 --bind 0.0.0.0:$PORT app:app
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    disk:
+      name: talkmate-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: TALKMATE_ENV
+        value: production
+      - key: TALKMATE_SECRET_KEY
+        generateValue: true
+      - key: TALKMATE_SESSION_SECURE
+        value: "true"
+      - key: TALKMATE_TRUST_PROXY
+        value: "true"
+      - key: TALKMATE_DB
+        value: /var/data/talkmate.db
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
